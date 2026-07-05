@@ -290,13 +290,17 @@ function consentPage({
     .filter(Boolean)
     .map((s) => `<li>${escapeHtml(SCOPE_DESCRIPTIONS[s] ?? s)}</li>`)
     .join("");
-  const monogram = (clientName.trim().charAt(0) || "?").toUpperCase();
+  // Claude gets its real logo (rounded via the shared .brand img style);
+  // any other connector falls back to a monogram badge.
+  const connectorBadge = /claude/i.test(clientName)
+    ? `<img src="/assets/claude-logo.png" alt="${escapeHtml(clientName)}" />`
+    : `<div class="mono">${escapeHtml((clientName.trim().charAt(0) || "?").toUpperCase())}</div>`;
   return pageShell(
     `
     <div class="brand">
       <img src="/assets/logo.png" alt="AskingFate" />
       <div class="dots"><i></i><i></i><i></i></div>
-      <div class="mono">${escapeHtml(monogram)}</div>
+      ${connectorBadge}
     </div>
     <h1>อนุญาตการเชื่อมต่อ</h1>
     <p class="sub"><strong>${escapeHtml(clientName)}</strong> ต้องการเชื่อมต่อกับบัญชี <strong>AskingFate</strong> ของคุณ</p>
