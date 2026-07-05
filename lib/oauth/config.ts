@@ -20,6 +20,7 @@ export const ACCESS_TOKEN_TTL_SECONDS = 60 * 60; // 1 hour
 export const AUTH_CODE_TTL_SECONDS = 60; // single-use, short-lived
 export const REFRESH_TOKEN_TTL_SECONDS = 30 * 24 * 60 * 60; // 30 days
 export const CONSENT_TXN_TTL_SECONDS = 10 * 60; // consent page validity
+export const SESSION_TTL_SECONDS = 8 * 60 * 60; // browser session with the authorize endpoint
 
 /**
  * Redirect URIs that clients may register, matched EXACTLY (RFC 8252 §7.3

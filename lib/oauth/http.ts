@@ -66,18 +66,45 @@ export async function enforceRateLimit(
   return null;
 }
 
-export function htmlResponse(status: number, html: string): Response {
+/**
+ * HTML response with a strict CSP. Pages that need inline JS pass a
+ * `scriptNonce` (put the same nonce on the <script> tag) and, when that JS
+ * calls external APIs (Supabase auth), the allowed origins via `connectSrc`.
+ */
+export function htmlResponse(
+  status: number,
+  html: string,
+  opts?: { scriptNonce?: string; connectSrc?: string[] },
+): Response {
+  const csp = [
+    "default-src 'none'",
+    "style-src 'unsafe-inline'",
+    ...(opts?.scriptNonce ? [`script-src 'nonce-${opts.scriptNonce}'`] : []),
+    ...(opts?.connectSrc ? [`connect-src ${["'self'", ...opts.connectSrc].join(" ")}`] : []),
+    "frame-ancestors 'none'",
+    "form-action 'self'",
+  ].join("; ");
   return new Response(html, {
     status,
     headers: {
       ...NO_STORE_HEADERS,
       "Content-Type": "text/html; charset=utf-8",
       "X-Frame-Options": "DENY",
-      "Content-Security-Policy":
-        "default-src 'none'; style-src 'unsafe-inline'; frame-ancestors 'none'; form-action 'self'",
+      "Content-Security-Policy": csp,
       "Referrer-Policy": "no-referrer",
     },
   });
+}
+
+export function parseCookies(header: string | null): Record<string, string> {
+  const result: Record<string, string> = {};
+  if (!header) return result;
+  for (const part of header.split(";")) {
+    const eq = part.indexOf("=");
+    if (eq === -1) continue;
+    result[part.slice(0, eq).trim()] = part.slice(eq + 1).trim();
+  }
+  return result;
 }
 
 export function escapeHtml(value: string): string {
