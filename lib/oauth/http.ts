@@ -79,6 +79,7 @@ export function htmlResponse(
   const csp = [
     "default-src 'none'",
     "style-src 'unsafe-inline'",
+    "img-src 'self'",
     ...(opts?.scriptNonce ? [`script-src 'nonce-${opts.scriptNonce}'`] : []),
     ...(opts?.connectSrc ? [`connect-src ${["'self'", ...opts.connectSrc].join(" ")}`] : []),
     "frame-ancestors 'none'",
