@@ -1,13 +1,16 @@
 /**
- * Session establishment for the authorize sign-in page.
+ * Session establishment for the sign-in handoff.
  *
- * POST { access_token } — a Supabase access token obtained client-side on
- * the /oauth/authorize sign-in page (password grant or the Google
- * round-trip). The token is verified server-side against the Supabase
- * project; on success the signed af_mcp_session cookie is set.
+ * POST { access_token } — a Supabase access token handed over by
+ * askingfate.com after the user signs in there (see /oauth/callback). The
+ * token is verified server-side against the Supabase project; on success
+ * the signed af_mcp_session cookie is set.
  *
- * Same-origin only (Origin header must match the issuer) — this endpoint is
- * exclusively called by our own pages, and the check prevents login CSRF.
+ * Same-origin only — this endpoint is exclusively called by our own
+ * /oauth/callback page, and the check prevents login CSRF. The Origin
+ * header must match either the derived issuer or the request's own host
+ * (the latter covers deployments where OAUTH_ISSUER differs from the
+ * serving hostname).
  */
 import { issuerFromRequest } from "@/lib/oauth/config";
 import { enforceRateLimit, oauthError } from "@/lib/oauth/http";
@@ -16,18 +19,50 @@ import { getSupabaseConfig, verifySupabaseAccessToken } from "@/lib/oauth/supaba
 
 export const maxDuration = 15;
 
+function isSameOrigin(req: Request, origin: string, issuer: string): boolean {
+  if (origin.replace(/\/$/, "") === issuer) return true;
+  try {
+    const host =
+      req.headers.get("x-forwarded-host")?.split(",")[0]?.trim() || req.headers.get("host");
+    return !!host && new URL(origin).host === host;
+  } catch {
+    return false;
+  }
+}
+
 export async function POST(req: Request): Promise<Response> {
+  try {
+    return await establishSession(req);
+  } catch (err) {
+    // Most likely a missing JWT_SECRET (cookie signing) — surface it instead
+    // of an opaque 500 so the callback page can show what to fix.
+    console.error("[oauth] /oauth/session failed:", err);
+    const message = err instanceof Error ? err.message : "unexpected error";
+    return oauthError(500, "server_error", `Session could not be established: ${message}`);
+  }
+}
+
+async function establishSession(req: Request): Promise<Response> {
   const limited = await enforceRateLimit(req, "session", 30, 300);
   if (limited) return limited;
 
   const issuer = issuerFromRequest(req);
   const origin = req.headers.get("origin");
-  if (!origin || origin.replace(/\/$/, "") !== issuer) {
-    return oauthError(403, "invalid_request", "Cross-origin session establishment is not allowed.");
+  if (!origin || !isSameOrigin(req, origin, issuer)) {
+    console.warn(`[oauth] session rejected: origin ${origin ?? "(none)"} vs issuer ${issuer}`);
+    return oauthError(
+      403,
+      "invalid_request",
+      `Cross-origin session establishment is not allowed (origin ${origin ?? "missing"}, issuer ${issuer}).`,
+    );
   }
 
   if (!getSupabaseConfig()) {
-    return oauthError(503, "temporarily_unavailable", "Sign-in is not configured on this server.");
+    return oauthError(
+      503,
+      "temporarily_unavailable",
+      "SUPABASE_URL / SUPABASE_ANON_KEY are not configured on this deployment.",
+    );
   }
 
   let body: { access_token?: unknown };
@@ -43,7 +78,11 @@ export async function POST(req: Request): Promise<Response> {
 
   const user = await verifySupabaseAccessToken(accessToken);
   if (!user) {
-    return oauthError(401, "invalid_token", "The access token could not be verified.");
+    return oauthError(
+      401,
+      "invalid_token",
+      "Supabase rejected the access token — check that SUPABASE_URL and SUPABASE_ANON_KEY on this deployment match the main site's project.",
+    );
   }
 
   return new Response(null, {

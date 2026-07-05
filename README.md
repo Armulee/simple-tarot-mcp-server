@@ -66,8 +66,6 @@ askingfate.com account system.
    verifies it server-side (same Supabase project) and sets a signed
    HttpOnly session cookie for this deployment, then resumes the authorize
    URL → a short consent page (app name, requested scopes, อนุญาต/ปฏิเสธ).
-   `OAUTH_HOSTED_SIGNIN=true` swaps the redirect for a self-hosted sign-in
-   page (email/password + Google against the same Supabase project).
 4. Consent issues a single-use authorization code (60 s TTL, stored hashed,
    bound to user + client + PKCE `code_challenge`) and redirects back to Claude.
 5. `POST /oauth/token` exchanges the code — **PKCE S256 is verified on every
@@ -97,19 +95,14 @@ fragment; `/oauth/session` verifies it against the project and issues our
 own session cookie. Deployment requirements:
 
 1. Set `SUPABASE_URL` + `SUPABASE_ANON_KEY` (or their `NEXT_PUBLIC_`-prefixed
-   twins) to the exact values the main site uses.
-2. The main site must be deployed with the token-handoff support above (or
-   set `OAUTH_HOSTED_SIGNIN=true` here to render a self-hosted sign-in page
-   that needs no main-site cooperation — its Google leg then requires
-   `https://mcp.askingfate.com/oauth/callback` in the Supabase project's
-   allowed redirect URLs under Authentication → URL Configuration).
+   twins) to the exact values the main site uses — without them
+   `/oauth/authorize` refuses with a 503 saying so.
+2. The main site must be deployed with the token-handoff support above.
 
 `lib/oauth/session.ts`/`lib/oauth/supabase.ts` remain the single integration
-point. If the Supabase env is missing, logged-out users are redirected to
-`ASKINGFATE_LOGIN_URL` (default `https://askingfate.com/signin`) with a
-callback straight back to the authorize URL — but without a token handoff
-that flow cannot complete, so treat it as a misconfiguration signal, not a
-feature.
+point. When session establishment fails, `/oauth/callback` shows the exact
+server error (wrong Supabase project, missing `JWT_SECRET`, origin
+mismatch, …) and the reason is also logged server-side.
 
 ### Testing locally / MCP Inspector
 

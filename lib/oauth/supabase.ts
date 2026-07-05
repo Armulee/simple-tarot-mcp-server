@@ -44,7 +44,10 @@ export async function verifySupabaseAccessToken(accessToken: string): Promise<As
       },
       cache: "no-store",
     });
-    if (!res.ok) return null;
+    if (!res.ok) {
+      console.warn(`[oauth] supabase token verification failed: ${res.status} from ${config.url}/auth/v1/user`);
+      return null;
+    }
     const data = (await res.json().catch(() => null)) as SupabaseUserResponse | null;
     if (!data || typeof data.id !== "string" || data.id === "") return null;
     const metaName = data.user_metadata?.name ?? data.user_metadata?.full_name;
@@ -53,7 +56,8 @@ export async function verifySupabaseAccessToken(accessToken: string): Promise<As
       email: typeof data.email === "string" ? data.email : undefined,
       name: typeof metaName === "string" ? metaName : undefined,
     };
-  } catch {
+  } catch (err) {
+    console.warn(`[oauth] supabase token verification unreachable (${config.url}):`, err);
     return null;
   }
 }

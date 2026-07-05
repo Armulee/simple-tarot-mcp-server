@@ -1,17 +1,15 @@
 /**
- * Sign-in return leg. Two flows land here, both with the Supabase access
- * token in the URL FRAGMENT:
- *   - default: askingfate.com/signin (or /signup, or its Google
- *     /auth/callback leg) redirects back after the user logs in there
- *   - OAUTH_HOSTED_SIGNIN=true: Supabase itself redirects here after the
- *     Google leg started on our own sign-in page (implicit flow) — this URL
- *     must then be allowlisted in the Supabase project under
- *     Authentication → URL Configuration → Redirect URLs
+ * Sign-in return leg: askingfate.com/signin (or /signup, or its Google
+ * /auth/callback leg) redirects here after the user logs in there, with the
+ * Supabase access token in the URL FRAGMENT.
  *
  * Fragments never reach the server, so this must be a browser page: its
  * inline script reads #access_token, POSTs it to /oauth/session to set our
  * HttpOnly session cookie, then returns to the authorize URL remembered in
  * the af_oauth_return cookie (validated to be our own authorize endpoint).
+ * It renders as a plain "กำลังเข้าสู่ระบบ…" flash — the only time a user
+ * sees more is when session establishment fails, and then the page shows
+ * the exact server error to make misconfiguration diagnosable.
  */
 import { issuerFromRequest } from "@/lib/oauth/config";
 import { randomToken } from "@/lib/oauth/crypto";
@@ -67,11 +65,15 @@ export async function GET(req: Request): Promise<Response> {
             headers: { "content-type": "application/json" },
             body: JSON.stringify({ access_token: token }),
           });
-          if (!res.ok) return fail("ยืนยันตัวตนไม่สำเร็จ");
+          if (!res.ok) {
+            const data = await res.json().catch(() => null);
+            const detail = (data && (data.error_description || data.error)) || ("HTTP " + res.status);
+            return fail("ยืนยันตัวตนไม่สำเร็จ: " + detail);
+          }
           if (CFG.returnUrl) location.replace(CFG.returnUrl);
           else fail("เข้าสู่ระบบสำเร็จ แต่ไม่พบหน้าที่ต้องกลับไป");
-        } catch {
-          fail("ยืนยันตัวตนไม่สำเร็จ");
+        } catch (e) {
+          fail("ยืนยันตัวตนไม่สำเร็จ: " + (e && e.message ? e.message : "network error"));
         }
       })();
     </script>
