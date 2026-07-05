@@ -15,6 +15,7 @@ import { issuerFromRequest } from "@/lib/oauth/config";
 import { randomToken } from "@/lib/oauth/crypto";
 import { htmlResponse, parseCookies } from "@/lib/oauth/http";
 import { RETURN_COOKIE } from "@/lib/oauth/session";
+import { pageShell } from "@/lib/oauth/ui";
 
 export const maxDuration = 15;
 
@@ -41,14 +42,18 @@ export async function GET(req: Request): Promise<Response> {
 
   const nonce = randomToken(16);
   const cfg = JSON.stringify({ returnUrl }).replace(/</g, "\\u003c");
-  const html = pageShell(`
-    <h1>กำลังเข้าสู่ระบบ…</h1>
-    <p id="status">กรุณารอสักครู่</p>
+  const html = pageShell(
+    `
+    <div class="brand"><img src="/assets/logo.png" alt="AskingFate" /></div>
+    <div class="spinner" id="spin"></div>
+    <h1 id="headline">กำลังเข้าสู่ระบบ…</h1>
+    <p class="sub" id="status">กรุณารอสักครู่</p>
     <script nonce="${nonce}">
       const CFG = ${cfg};
       const status = document.getElementById("status");
       function fail(message) {
-        document.querySelector("h1").textContent = "เข้าสู่ระบบไม่สำเร็จ";
+        document.getElementById("spin").style.display = "none";
+        document.getElementById("headline").textContent = "เข้าสู่ระบบไม่สำเร็จ";
         status.textContent = message + " — กรุณาเริ่มเชื่อมต่อใหม่จากแอปของคุณ";
       }
       (async () => {
@@ -77,7 +82,9 @@ export async function GET(req: Request): Promise<Response> {
         }
       })();
     </script>
-  `);
+  `,
+    "AskingFate — กำลังเข้าสู่ระบบ",
+  );
 
   const response = htmlResponse(200, html, { scriptNonce: nonce, connectSrc: [] });
   const secure = issuer.startsWith("https:") ? "; Secure" : "";
@@ -85,31 +92,4 @@ export async function GET(req: Request): Promise<Response> {
   // Single-use: drop the return cookie now that it is embedded in the page.
   headers.append("Set-Cookie", `${RETURN_COOKIE}=; Path=/oauth; Max-Age=0; HttpOnly; SameSite=Lax${secure}`);
   return new Response(response.body, { status: response.status, headers });
-}
-
-function pageShell(body: string): string {
-  return `<!doctype html>
-<html lang="th">
-<head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Asking Fate — กำลังเข้าสู่ระบบ</title>
-<style>
-  :root { color-scheme: dark; }
-  body {
-    margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center;
-    background: radial-gradient(ellipse at top, #241b3a 0%, #120d20 65%);
-    color: #efe9ff; font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
-  }
-  main {
-    max-width: 420px; margin: 24px; padding: 32px 28px; border-radius: 16px;
-    background: rgba(30, 22, 54, 0.85); border: 1px solid rgba(155, 130, 220, 0.35);
-    box-shadow: 0 8px 40px rgba(0, 0, 0, 0.5);
-  }
-  h1 { font-size: 1.3rem; margin: 0 0 12px; }
-  p { line-height: 1.55; margin: 8px 0; }
-</style>
-</head>
-<body><main>${body}</main></body>
-</html>`;
 }

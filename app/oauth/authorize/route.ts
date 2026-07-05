@@ -27,14 +27,15 @@ import { signConsentTxn, verifyConsentTxn } from "@/lib/oauth/jwt";
 import { buildLoginRedirect, getAskingfateUser, RETURN_COOKIE } from "@/lib/oauth/session";
 import { getSupabaseConfig } from "@/lib/oauth/supabase";
 import { getOAuthStore, type OAuthClient } from "@/lib/oauth/store";
+import { pageShell } from "@/lib/oauth/ui";
 
 export const maxDuration = 15;
 
 const CONSENT_COOKIE = "af_oauth_consent";
 
 const SCOPE_DESCRIPTIONS: Record<string, string> = {
-  mcp: "ใช้เครื่องมือดูดวงของ Asking Fate ในนามของคุณ (ไพ่ทาโรต์, ดวงไทย, ราศี, ฤกษ์มงคล)",
-  claudeai: "ให้ Claude ใช้เครื่องมือดูดวงของ Asking Fate ในนามของคุณ",
+  mcp: "เข้าถึงเครื่องมือดูดวงของ AskingFate — ไพ่ทาโรต์ ดวงไทย ราศี และฤกษ์มงคล",
+  claudeai: "เปิดไพ่และดูดวงในนามของคุณผ่าน Claude",
 };
 
 /* ------------------------------------------------------------------ */
@@ -262,10 +263,14 @@ function mainSiteSignInRedirect(req: Request, issuer: string): Response {
 function errorPage(status: number, message: string): Response {
   return htmlResponse(
     status,
-    pageShell(`
+    pageShell(
+      `
+      <div class="brand"><img src="/assets/logo.png" alt="AskingFate" /></div>
       <h1>เกิดข้อผิดพลาด</h1>
-      <p>${escapeHtml(message)}</p>
-    `),
+      <p class="sub">${escapeHtml(message)}</p>
+    `,
+      "AskingFate — เกิดข้อผิดพลาด",
+    ),
   );
 }
 
@@ -285,11 +290,18 @@ function consentPage({
     .filter(Boolean)
     .map((s) => `<li>${escapeHtml(SCOPE_DESCRIPTIONS[s] ?? s)}</li>`)
     .join("");
-  return pageShell(`
+  const monogram = (clientName.trim().charAt(0) || "?").toUpperCase();
+  return pageShell(
+    `
+    <div class="brand">
+      <img src="/assets/logo.png" alt="AskingFate" />
+      <div class="dots"><i></i><i></i><i></i></div>
+      <div class="mono">${escapeHtml(monogram)}</div>
+    </div>
     <h1>อนุญาตการเชื่อมต่อ</h1>
-    <p><strong>${escapeHtml(clientName)}</strong> ขอเข้าถึงบัญชี Asking Fate ของคุณ</p>
-    <p class="account">บัญชี: ${escapeHtml(userLabel)}</p>
-    <ul>${scopeItems}</ul>
+    <p class="sub"><strong>${escapeHtml(clientName)}</strong> ต้องการเชื่อมต่อกับบัญชี <strong>AskingFate</strong> ของคุณ</p>
+    <div class="account">${escapeHtml(userLabel)}</div>
+    <ul class="perms">${scopeItems}</ul>
     <form method="post" action="/oauth/authorize">
       <input type="hidden" name="txn" value="${escapeHtml(txn)}" />
       <div class="buttons">
@@ -297,41 +309,8 @@ function consentPage({
         <button type="submit" name="decision" value="deny" class="deny">ปฏิเสธ</button>
       </div>
     </form>
-  `);
-}
-
-function pageShell(body: string): string {
-  return `<!doctype html>
-<html lang="th">
-<head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Asking Fate — อนุญาตการเชื่อมต่อ</title>
-<style>
-  :root { color-scheme: dark; }
-  body {
-    margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center;
-    background: radial-gradient(ellipse at top, #241b3a 0%, #120d20 65%);
-    color: #efe9ff; font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
-  }
-  main {
-    max-width: 420px; margin: 24px; padding: 32px 28px; border-radius: 16px;
-    background: rgba(30, 22, 54, 0.85); border: 1px solid rgba(155, 130, 220, 0.35);
-    box-shadow: 0 8px 40px rgba(0, 0, 0, 0.5);
-  }
-  h1 { font-size: 1.3rem; margin: 0 0 12px; }
-  p { line-height: 1.55; margin: 8px 0; }
-  .account { color: #b9a8e8; font-size: 0.9rem; }
-  ul { padding-left: 20px; line-height: 1.6; }
-  .buttons { display: flex; gap: 12px; margin-top: 24px; }
-  button {
-    flex: 1; padding: 12px 0; border-radius: 10px; border: none;
-    font-size: 1rem; font-weight: 600; cursor: pointer;
-  }
-  .allow { background: #7c5cd6; color: #fff; }
-  .deny { background: transparent; color: #cfc3ef; border: 1px solid rgba(155, 130, 220, 0.5); }
-</style>
-</head>
-<body><main>${body}</main></body>
-</html>`;
+    <p class="fineprint">หลังกดอนุญาต คุณจะถูกพากลับไปยัง ${escapeHtml(clientName)} โดยอัตโนมัติ</p>
+  `,
+    "AskingFate — อนุญาตการเชื่อมต่อ",
+  );
 }
