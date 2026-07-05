@@ -1,4 +1,4 @@
-# Asking Fate — MCP Server
+# AskingFate — MCP Server
 
 Remote MCP server for [askingfate.com](https://askingfate.com) fortune-telling services, built with Next.js (App Router, API-only) and [`mcp-handler`](https://www.npmjs.com/package/mcp-handler).
 
@@ -9,7 +9,7 @@ Remote MCP server for [askingfate.com](https://askingfate.com) fortune-telling s
 | Tool | Description |
 | --- | --- |
 | `draw_tarot_spread` | Shuffles the full 78-card deck (crypto-random, no duplicates, upright/reversed) and opens an interactive MCP App UI where the user taps face-down cards arranged in a fan to complete the spread (`single`, `three_card`, or `celtic_cross`). The user's picks are sent back to the host for the model to interpret. |
-| `get_thai_horoscope` | Structured Thai astrology data (ตำราทักษา) for a birth date: day planet, element, lucky/kalakini colours, lucky numbers, the eight Thaksa positions, and an approximate ascendant when a birth time is given. |
+| `get_thai_horoscope` | Structured Thai astrology data (the traditional Thaksa tables) for a birth date: day planet, element, lucky/kalakini colours, lucky numbers, the eight Thaksa positions, and an approximate ascendant when a birth time is given. |
 | `get_zodiac_info` | Western (tropical) sign with element/quality/ruling planet, approximate Thai sidereal sign, and the Thai/Chinese 12-year animal with year-boundary caveats. |
 | `get_auspicious_dates` | Auspicious dates in a month for a purpose (`wedding`, `business`, `moving`, `car`) rated by traditional Thai day-of-week principles, with reasons and days to avoid. |
 
@@ -65,7 +65,7 @@ askingfate.com account system.
    the URL fragment; `/oauth/callback` POSTs it to `/oauth/session`, which
    verifies it server-side (same Supabase project) and sets a signed
    HttpOnly session cookie for this deployment, then resumes the authorize
-   URL → a short consent page (app name, requested scopes, อนุญาต/ปฏิเสธ).
+   URL → a short consent page (app name, requested scopes, Allow/Deny).
 4. Consent issues a single-use authorization code (60 s TTL, stored hashed,
    bound to user + client + PKCE `code_challenge`) and redirects back to Claude.
 5. `POST /oauth/token` exchanges the code — **PKCE S256 is verified on every

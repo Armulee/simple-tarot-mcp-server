@@ -6,7 +6,7 @@
  */
 export function pageShell(body: string, title = "AskingFate"): string {
   return `<!doctype html>
-<html lang="th">
+<html lang="en">
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -17,7 +17,7 @@ export function pageShell(body: string, title = "AskingFate"): string {
   body {
     margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center;
     background: #050409; color: #f2eefb; overflow-x: hidden;
-    font-family: system-ui, -apple-system, "Segoe UI", "Noto Sans Thai", sans-serif;
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
   }
   body::before, body::after {
     content: ""; position: fixed; pointer-events: none; border-radius: 50%;

@@ -19,11 +19,11 @@
 export const TAROT_APP_URI = "ui://askingfate/tarot-picker.html";
 
 export const TAROT_APP_HTML = /* html */ `<!DOCTYPE html>
-<html lang="th">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Asking Fate — เปิดไพ่ทาโรต์</title>
+<title>AskingFate — Tarot Reading</title>
 <style>
   :root {
     --purple-deepest: #140a26;
@@ -39,7 +39,7 @@ export const TAROT_APP_HTML = /* html */ `<!DOCTYPE html>
   * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
   html, body { background: transparent; }
   body {
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans Thai", "Sukhumvit Set", sans-serif;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     color: var(--ink);
     user-select: none;
     -webkit-user-select: none;
@@ -120,14 +120,12 @@ export const TAROT_APP_HTML = /* html */ `<!DOCTYPE html>
   .cardface.rev { transform: rotate(180deg); }
   .cardface .glyph { font-size: 17px; color: var(--gold-bright); line-height: 1; }
   .cardface .numeral { font-size: 10px; color: var(--gold); letter-spacing: 0.1em; }
-  .cardface .nameth {
+  .cardface .name {
     font-size: 10px; font-weight: 700; color: var(--ink);
     text-align: center; line-height: 1.25; word-break: break-word;
   }
-  .cardface .nameen { font-size: 8px; color: var(--ink-dim); text-align: center; line-height: 1.2; }
   body.s-10 .cardface .glyph { font-size: 13px; }
-  body.s-10 .cardface .nameth { font-size: 8px; }
-  body.s-10 .cardface .nameen { display: none; }
+  body.s-10 .cardface .name { font-size: 8px; }
   .revbadge {
     position: absolute; top: 3px; right: 4px; font-size: 9px; color: var(--gold-bright);
   }
@@ -135,7 +133,6 @@ export const TAROT_APP_HTML = /* html */ `<!DOCTYPE html>
     margin-top: 5px; font-size: 10px; color: var(--gold); line-height: 1.3;
     letter-spacing: 0.02em;
   }
-  .slot .plabel .en { color: var(--ink-dim); display: block; font-size: 8px; }
   .slot.filled .well { animation: glowpulse 0.9s ease-out; }
   @keyframes glowpulse {
     0% { filter: drop-shadow(0 0 0 rgba(240, 199, 94, 0)); }
@@ -206,19 +203,19 @@ export const TAROT_APP_HTML = /* html */ `<!DOCTYPE html>
 <body>
 <div id="stage" class="waiting">
   <header>
-    <h1>✦ Asking Fate ✦</h1>
+    <h1>✦ AskingFate ✦</h1>
     <div class="rule"></div>
-    <p id="subtitle" class="shimmer">กำลังสับไพ่…</p>
+    <p id="subtitle" class="shimmer">Shuffling the deck…</p>
     <p id="question"></p>
   </header>
-  <section id="slots" aria-label="ไพ่ที่เลือกแล้ว"></section>
+  <section id="slots" aria-label="Chosen cards"></section>
   <p id="counter"></p>
-  <section id="fanwrap" aria-label="สำรับไพ่"><div id="fan"></div></section>
-  <p id="fanhint">เลื่อนซ้าย–ขวาเพื่อดูไพ่ทั้งสำรับ แล้วแตะใบที่เรียกหาคุณ</p>
+  <section id="fanwrap" aria-label="The deck"><div id="fan"></div></section>
+  <p id="fanhint">Scroll through the deck, then tap the cards that call to you</p>
   <div id="panel" hidden>
     <p class="big" id="panel-title"></p>
     <p id="panel-body"></p>
-    <button id="resend" hidden>ลองส่งอีกครั้ง</button>
+    <button id="resend" hidden>Try again</button>
   </div>
 </div>
 <script>
@@ -280,7 +277,7 @@ export const TAROT_APP_HTML = /* html */ `<!DOCTYPE html>
   }
 
   /* ---------- state ---------- */
-  var spread = null;   // { spread_type, spread_name_th, positions: [...], deck: [...] }
+  var spread = null;   // { spread_type, spread_name, positions: [...], deck: [...] }
   var picks = [];      // { position, card }
   var taken = new Set();
   var sending = false;
@@ -297,14 +294,14 @@ export const TAROT_APP_HTML = /* html */ `<!DOCTYPE html>
 
   function onToolCancelled() {
     toolCancelled = true;
-    showPanel("การเปิดไพ่ถูกยกเลิก", "ปิดหน้านี้แล้วลองเรียกเปิดไพ่ใหม่อีกครั้งได้เลย", false);
+    showPanel("The card draw was cancelled", "Close this view and start a new draw whenever you're ready.", false);
   }
 
   function onToolResult(result) {
     if (spread) return; // already initialised
     var sc = result && result.structuredContent;
     if (!sc || !Array.isArray(sc.deck) || !Array.isArray(sc.positions)) {
-      showPanel("ข้อมูลไพ่ไม่ครบถ้วน", "เรียกเครื่องมือ draw_tarot_spread ใหม่อีกครั้ง", false);
+      showPanel("Card data incomplete", "Call the draw_tarot_spread tool again.", false);
       return;
     }
     spread = sc;
@@ -314,7 +311,8 @@ export const TAROT_APP_HTML = /* html */ `<!DOCTYPE html>
     buildSlots();
     buildFan();
     el("subtitle").classList.remove("shimmer");
-    el("subtitle").textContent = sc.spread_name_th + " — แตะเลือกไพ่ " + sc.positions.length + " ใบ";
+    el("subtitle").textContent = sc.spread_name + " — tap to pick " +
+      sc.positions.length + (sc.positions.length > 1 ? " cards" : " card");
     document.getElementById("stage").classList.remove("waiting");
     document.body.classList.add("s-" + sc.positions.length);
     updateCounter();
@@ -348,11 +346,7 @@ export const TAROT_APP_HTML = /* html */ `<!DOCTYPE html>
 
       var label = document.createElement("div");
       label.className = "plabel";
-      label.textContent = pos.index + ". " + pos.label_th;
-      var en = document.createElement("span");
-      en.className = "en";
-      en.textContent = pos.label_en;
-      label.appendChild(en);
+      label.textContent = pos.index + ". " + pos.label;
       slot.appendChild(label);
 
       slots.appendChild(slot);
@@ -374,7 +368,7 @@ export const TAROT_APP_HTML = /* html */ `<!DOCTYPE html>
       c.style.top = (34 + 26 * t * t) + "px";
       c.style.transform = "rotate(" + (t * 24) + "deg)";
       c.setAttribute("role", "button");
-      c.setAttribute("aria-label", "ไพ่คว่ำใบที่ " + (i + 1));
+      c.setAttribute("aria-label", "Face-down card " + (i + 1));
       var back = document.createElement("div");
       back.className = "cback";
       var star = document.createElement("span");
@@ -423,22 +417,18 @@ export const TAROT_APP_HTML = /* html */ `<!DOCTYPE html>
     var numeral = document.createElement("div");
     numeral.className = "numeral";
     numeral.textContent = card.numeral;
-    var nameth = document.createElement("div");
-    nameth.className = "nameth";
-    nameth.textContent = card.name_th;
-    var nameen = document.createElement("div");
-    nameen.className = "nameen";
-    nameen.textContent = card.name_en;
+    var name = document.createElement("div");
+    name.className = "name";
+    name.textContent = card.name;
     face.appendChild(glyph);
     face.appendChild(numeral);
-    face.appendChild(nameth);
-    face.appendChild(nameen);
+    face.appendChild(name);
     front.appendChild(face);
 
     if (card.reversed) {
       var badge = document.createElement("div");
       badge.className = "revbadge";
-      badge.textContent = "↺ กลับหัว";
+      badge.textContent = "↺ Reversed";
       front.appendChild(badge);
     }
     slot.classList.add("filled");
@@ -451,19 +441,18 @@ export const TAROT_APP_HTML = /* html */ `<!DOCTYPE html>
       el("counter").innerHTML = "";
       var b = document.createElement("b");
       b.textContent = picks.length + " / " + total;
-      el("counter").appendChild(document.createTextNode("เลือกแล้ว "));
+      el("counter").appendChild(document.createTextNode("Picked "));
       el("counter").appendChild(b);
-      el("counter").appendChild(document.createTextNode(" ใบ"));
+      el("counter").appendChild(document.createTextNode(" cards"));
     } else {
-      el("counter").textContent = "ครบ " + total + " ใบแล้ว ✨";
+      el("counter").textContent = "All " + total + " cards picked ✨";
     }
   }
 
   function pickSummaryLines() {
     return picks.map(function (p) {
-      return p.position.index + ". " + p.position.label_th + " (" + p.position.label_en + "): " +
-        p.card.name_th + " — " + p.card.name_en +
-        (p.card.reversed ? " (กลับหัว / Reversed)" : " (ตั้งตรง / Upright)");
+      return p.position.index + ". " + p.position.label + ": " + p.card.name +
+        (p.card.reversed ? " (Reversed)" : " (Upright)");
     });
   }
 
@@ -484,13 +473,13 @@ export const TAROT_APP_HTML = /* html */ `<!DOCTYPE html>
   function sendResults() {
     if (sending) return;
     sending = true;
-    showPanel("🔮 กำลังส่งผลไพ่ให้ Claude…", "", false);
+    showPanel("🔮 Sending your cards to Claude…", "", false);
 
     var lines = pickSummaryLines();
-    var header = "ผู้ใช้เปิดไพ่ทาโรต์ครบแล้ว — " + spread.spread_name_th +
-      (spread.question ? " | คำถาม: “" + spread.question + "”" : "");
+    var header = "The user has finished picking tarot cards — " + spread.spread_name +
+      (spread.question ? " | Question: “" + spread.question + "”" : "");
     var text = header + "\\n" + lines.join("\\n") +
-      "\\nโปรดตีความไพ่ทีละตำแหน่ง เชื่อมโยงกับคำถามของผู้ใช้ แล้วสรุปคำแนะนำในภาพรวม";
+      "\\nPlease interpret each card in its position, connect the reading to the user's question, and close with overall guidance.";
 
     var structured = {
       spread_type: spread.spread_type,
@@ -499,10 +488,8 @@ export const TAROT_APP_HTML = /* html */ `<!DOCTYPE html>
         return {
           position_index: p.position.index,
           position_key: p.position.key,
-          position_th: p.position.label_th,
-          position_en: p.position.label_en,
-          name_en: p.card.name_en,
-          name_th: p.card.name_th,
+          position_label: p.position.label,
+          name: p.card.name,
           orientation: p.card.reversed ? "reversed" : "upright",
         };
       }),
@@ -512,14 +499,14 @@ export const TAROT_APP_HTML = /* html */ `<!DOCTYPE html>
     if (hostCaps && hostCaps.message) {
       attempt = request("ui/message", { role: "user", content: [{ type: "text", text: text }] })
         .then(function () {
-          showPanel("✨ ส่งผลไพ่ให้ Claude แล้ว", "กลับไปที่บทสนทนาเพื่ออ่านคำทำนายของคุณ", false);
+          showPanel("✨ Cards sent to Claude", "Return to the conversation to read your interpretation.", false);
         });
     } else if (hostCaps && hostCaps.updateModelContext) {
       attempt = request("ui/update-model-context", {
         content: [{ type: "text", text: text }],
         structuredContent: structured,
       }).then(function () {
-        showPanel("✨ บันทึกผลไพ่แล้ว", "พิมพ์บอก Claude ว่า “เปิดไพ่แล้ว ช่วยตีความให้หน่อย” เพื่ออ่านคำทำนาย", false);
+        showPanel("✨ Cards saved", "Tell Claude “I've picked my cards — please interpret them” to read your interpretation.", false);
       });
     } else {
       attempt = Promise.reject(new Error("host does not support ui/message or ui/update-model-context"));
@@ -527,7 +514,7 @@ export const TAROT_APP_HTML = /* html */ `<!DOCTYPE html>
 
     attempt.catch(function () {
       sending = false;
-      showPanel("ส่งผลไพ่ไม่สำเร็จ", "ไพ่ที่คุณเลือก:\\n" + lines.join("\\n"), true);
+      showPanel("Could not send the cards", "Your picks:\\n" + lines.join("\\n"), true);
     });
   }
 
@@ -543,7 +530,7 @@ export const TAROT_APP_HTML = /* html */ `<!DOCTYPE html>
     notify("ui/notifications/initialized");
     sendSize();
   }).catch(function () {
-    showPanel("เชื่อมต่อกับหน้าต่างสนทนาไม่สำเร็จ", "เรียกเครื่องมือ draw_tarot_spread ใหม่อีกครั้ง", false);
+    showPanel("Could not connect to the conversation window", "Call the draw_tarot_spread tool again.", false);
   });
 
   window.addEventListener("resize", sendSize);

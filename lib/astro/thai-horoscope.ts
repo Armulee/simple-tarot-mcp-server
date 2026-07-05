@@ -4,7 +4,7 @@
  * calling model can do the interpretation; no fortune text is generated here.
  */
 
-import { EN_WEEKDAYS, formatThaiDate, ParsedDate, ParsedTime, THAI_WEEKDAYS } from "../dates";
+import { EN_WEEKDAYS, formatLongDate, ParsedDate, ParsedTime } from "../dates";
 import {
   computeTaksa,
   DayKey,
@@ -17,18 +17,18 @@ import { THAI_SIDEREAL_SIGNS, thaiSiderealSignIndex } from "./zodiac";
 
 export type HoroscopeCategory = "love" | "career" | "money" | "health" | "overall";
 
-export const CATEGORY_INFO: Record<HoroscopeCategory, { th: string; focusKeys: string[] }> = {
-  love: { th: "ความรัก", focusKeys: ["si", "montri"] },
-  career: { th: "การงาน", focusKeys: ["det", "utsaha", "montri"] },
-  money: { th: "การเงิน", focusKeys: ["mula", "si"] },
-  health: { th: "สุขภาพ", focusKeys: ["ayu"] },
-  overall: { th: "ภาพรวม", focusKeys: ["boriwan", "ayu", "det", "si", "mula", "utsaha", "montri"] },
+export const CATEGORY_INFO: Record<HoroscopeCategory, { label: string; focusKeys: string[] }> = {
+  love: { label: "love", focusKeys: ["si", "montri"] },
+  career: { label: "career", focusKeys: ["det", "utsaha", "montri"] },
+  money: { label: "finances", focusKeys: ["mula", "si"] },
+  health: { label: "health", focusKeys: ["ayu"] },
+  overall: { label: "overall", focusKeys: ["boriwan", "ayu", "det", "si", "mula", "utsaha", "montri"] },
 };
 
 interface AstrologicalDay {
   key: DayKey;
   planet: DayPlanet;
-  note_th: string;
+  note: string;
 }
 
 /**
@@ -41,8 +41,8 @@ export function resolveAstrologicalDay(date: ParsedDate, time?: ParsedTime): Ast
     return {
       key,
       planet: dayPlanet(key),
-      note_th:
-        "ไม่ได้ระบุเวลาเกิด จึงใช้วันตามปฏิทิน — ตามหลักโหราศาสตร์ไทย ผู้ที่เกิดเวลา 00:00–05:59 นับเป็นวันก่อนหน้า และผู้ที่เกิดคืนวันพุธ (18:00 เป็นต้นไป) นับเป็นวันราหู หากทราบเวลาเกิดให้ระบุ birth_time เพื่อความแม่นยำ",
+      note:
+        "No birth time given, so the calendar day is used. In Thai astrology a birth between 00:00–05:59 counts as the previous day, and a birth on Wednesday night (from 18:00) counts as Rahu's day. Provide birth_time for a precise result.",
     };
   }
 
@@ -56,28 +56,27 @@ export function resolveAstrologicalDay(date: ParsedDate, time?: ParsedTime): Ast
     return {
       key: "wednesday_night",
       planet: dayPlanet("wednesday_night"),
-      note_th: "เกิดคืนวันพุธ (หลัง 18:00 หรือก่อนรุ่งเช้าวันพฤหัสบดี) จึงนับเป็นวันราหูตามหลักทักษา",
+      note: "Born on Wednesday night (after 18:00, or before dawn on Thursday), which counts as Rahu's day under the Thaksa system.",
     };
   }
   const key = WEEKDAY_TO_DAY_KEY[weekday];
   return {
     key,
     planet: dayPlanet(key),
-    note_th: beforeDawn
-      ? `เกิดก่อนรุ่งเช้า (06:00) จึงนับเป็น${THAI_WEEKDAYS[weekday]}ตามหลักโหราศาสตร์ไทยที่เปลี่ยนวันตอนรุ่งเช้า`
-      : `วันทางโหราศาสตร์ตรงกับวันตามปฏิทิน (${THAI_WEEKDAYS[weekday]})`,
+    note: beforeDawn
+      ? `Born before dawn (06:00), so the astrological day counts as ${EN_WEEKDAYS[weekday]} — Thai astrology changes the day at dawn.`
+      : `The astrological day matches the calendar day (${EN_WEEKDAYS[weekday]}).`,
   };
 }
 
 interface LagnaInfo {
   method: string;
-  sign_th: string;
-  sign_en: string;
-  note_th: string;
+  sign: string;
+  note: string;
 }
 
 /**
- * Approximate the ascendant (ลัคนา) using the classical whole-sign shortcut:
+ * Approximate the ascendant (lagna) using the classical whole-sign shortcut:
  * at dawn the ascendant matches the Sun's sidereal sign and advances one sign
  * roughly every two hours. This is an approximation, not an ephemeris computation.
  */
@@ -88,62 +87,52 @@ export function approximateLagna(date: ParsedDate, time: ParsedTime): LagnaInfo 
   const sign = THAI_SIDEREAL_SIGNS[signIndex];
   return {
     method: "approximate_whole_sign_from_dawn",
-    sign_th: sign.name_th,
-    sign_en: sign.name_en,
-    note_th:
-      "ลัคนานี้คำนวณแบบประมาณจากราศีอาทิตย์ ณ รุ่งเช้า (ลัคนาเคลื่อน 1 ราศีทุก ~2 ชั่วโมง) ไม่ใช่การผูกดวงด้วยปฏิทินดาราศาสตร์ อาจคลาดเคลื่อนได้ 1 ราศีในช่วงรอยต่อ",
+    sign: sign.name,
+    note: "This ascendant is approximated from the Sun's sidereal sign at dawn (the ascendant advances one sign roughly every two hours). It is not an ephemeris computation and can be off by one sign near boundaries.",
   };
 }
 
 export interface ThaiHoroscopeData {
   birth_info: {
     birth_date: string;
-    birth_date_thai: string;
+    birth_date_long: string;
     birth_time?: string;
-    weekday_calendar_th: string;
-    weekday_calendar_en: string;
-    astrological_day_th: string;
-    astrological_day_en: string;
-    astrological_day_note_th: string;
+    weekday_calendar: string;
+    astrological_day: string;
+    astrological_day_note: string;
   };
   day_master: {
-    planet_th: string;
-    planet_en: string;
+    planet: string;
     number: number;
-    element_th: string;
-    element_en: string;
-    day_color_th: string;
-    day_color_en: string;
-    traits_th: ReadonlyArray<string>;
+    element: string;
+    day_color: string;
+    traits: ReadonlyArray<string>;
   };
   taksa: Array<{
-    position_th: string;
-    position_en: string;
-    meaning_th: string;
-    meaning_en: string;
-    planet_th: string;
-    planet_en: string;
-    color_th: string;
+    position: string;
+    meaning: string;
+    planet: string;
+    color: string;
     number: number;
   }>;
   lucky: {
-    colors_th: string[];
-    avoid_color_th: string;
-    avoid_color_reason_th: string;
+    colors: string[];
+    avoid_color: string;
+    avoid_color_reason: string;
     numbers: number[];
   };
   ascendant?: LagnaInfo;
   category: HoroscopeCategory;
-  category_th: string;
+  category_label: string;
   category_focus: Array<{
-    position_th: string;
-    meaning_th: string;
-    planet_th: string;
-    color_th: string;
+    position: string;
+    meaning: string;
+    planet: string;
+    color: string;
     number: number;
   }>;
-  interpretation_guide_th: string;
-  disclaimer_th: string;
+  interpretation_guide: string;
+  disclaimer: string;
 }
 
 export function buildThaiHoroscope(
@@ -165,62 +154,54 @@ export function buildThaiHoroscope(
   const focus = CATEGORY_INFO[category].focusKeys
     .map((k) => byKey.get(k)!)
     .map((p) => ({
-      position_th: p.name_th,
-      meaning_th: p.meaning_th,
-      planet_th: p.planet.planet_th,
-      color_th: p.planet.color_th,
+      position: p.name,
+      meaning: p.meaning,
+      planet: p.planet.planet,
+      color: p.planet.color,
       number: p.planet.number,
     }));
 
   return {
     birth_info: {
       birth_date: rawDate,
-      birth_date_thai: formatThaiDate(date),
+      birth_date_long: formatLongDate(date),
       ...(rawTime ? { birth_time: rawTime } : {}),
-      weekday_calendar_th: THAI_WEEKDAYS[date.weekday],
-      weekday_calendar_en: EN_WEEKDAYS[date.weekday],
-      astrological_day_th: astroDay.planet.day_th,
-      astrological_day_en: astroDay.planet.day_en,
-      astrological_day_note_th: astroDay.note_th,
+      weekday_calendar: EN_WEEKDAYS[date.weekday],
+      astrological_day: astroDay.planet.day,
+      astrological_day_note: astroDay.note,
     },
     day_master: {
-      planet_th: astroDay.planet.planet_th,
-      planet_en: astroDay.planet.planet_en,
+      planet: astroDay.planet.planet,
       number: astroDay.planet.number,
-      element_th: astroDay.planet.element_th,
-      element_en: astroDay.planet.element_en,
-      day_color_th: astroDay.planet.color_th,
-      day_color_en: astroDay.planet.color_en,
-      traits_th: astroDay.planet.traits_th,
+      element: astroDay.planet.element,
+      day_color: astroDay.planet.color,
+      traits: astroDay.planet.traits,
     },
     taksa: taksa.map((p) => ({
-      position_th: p.name_th,
-      position_en: p.name_en,
-      meaning_th: p.meaning_th,
-      meaning_en: p.meaning_en,
-      planet_th: p.planet.planet_th,
-      planet_en: p.planet.planet_en,
-      color_th: p.planet.color_th,
+      position: p.name,
+      meaning: p.meaning,
+      planet: p.planet.planet,
+      color: p.planet.color,
       number: p.planet.number,
     })),
     lucky: {
-      colors_th: [
-        `${astroDay.planet.color_th} (สีประจำวันเกิด)`,
-        `${det.planet.color_th} (สีเดช — อำนาจ บารมี)`,
-        `${si.planet.color_th} (สีศรี — โชคลาภ เมตตามหานิยม)`,
-        `${mula.planet.color_th} (สีมูละ — ทรัพย์สินเงินทอง)`,
+      colors: [
+        `${astroDay.planet.color} (birth-day colour)`,
+        `${det.planet.color} (Det — power and prestige)`,
+        `${si.planet.color} (Si — fortune, charm and favour)`,
+        `${mula.planet.color} (Mula — wealth and assets)`,
       ],
-      avoid_color_th: kalakini.planet.color_th,
-      avoid_color_reason_th: `เป็นสีกาลกิณีของผู้เกิด${astroDay.planet.day_th} (ตรงกับ${kalakini.planet.planet_th})`,
+      avoid_color: kalakini.planet.color,
+      avoid_color_reason: `The Kalakini (misfortune) colour for someone born on ${astroDay.planet.day} — it belongs to ${kalakini.planet.planet}.`,
       numbers: [astroDay.planet.number, det.planet.number, si.planet.number],
     },
     ...(time ? { ascendant: approximateLagna(date, time) } : {}),
     category,
-    category_th: CATEGORY_INFO[category].th,
+    category_label: CATEGORY_INFO[category].label,
     category_focus: focus,
-    interpretation_guide_th:
-      "ข้อมูลนี้เป็นข้อมูลดิบตามตำราทักษามหาโชค: ใช้ภูมิทักษาใน category_focus เป็นแกนตีความหมวดที่ถาม โดยดูดาวที่ครองภูมินั้น ธาตุ และสีประกอบ เสริมด้วยอุปนิสัยพื้นดวง (day_master.traits_th) และหลีกเลี่ยงสีกาลกิณี",
-    disclaimer_th:
-      "คำนวณตามหลักโหราศาสตร์ไทย (ทักษา) เพื่อความบันเทิงและการไตร่ตรอง ไม่ใช่คำพยากรณ์ที่รับประกันผล",
+    interpretation_guide:
+      "This is raw data from the traditional Thaksa tables. Use the positions in category_focus as the core for interpreting the asked category — read the planet ruling each position together with its element and colour, blend in the birth-day temperament from day_master.traits, and note the Kalakini colour to avoid.",
+    disclaimer:
+      "Computed from traditional Thai (Thaksa) astrology for reflection and entertainment — not a guaranteed prediction.",
   };
 }

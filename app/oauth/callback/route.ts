@@ -7,7 +7,7 @@
  * inline script reads #access_token, POSTs it to /oauth/session to set our
  * HttpOnly session cookie, then returns to the authorize URL remembered in
  * the af_oauth_return cookie (validated to be our own authorize endpoint).
- * It renders as a plain "กำลังเข้าสู่ระบบ…" flash — the only time a user
+ * It renders as a plain "Signing you in…" flash — the only time a user
  * sees more is when session establishment fails, and then the page shows
  * the exact server error to make misconfiguration diagnosable.
  */
@@ -46,15 +46,15 @@ export async function GET(req: Request): Promise<Response> {
     `
     <div class="brand"><img src="/assets/logo.png" alt="AskingFate" /></div>
     <div class="spinner" id="spin"></div>
-    <h1 id="headline">กำลังเข้าสู่ระบบ…</h1>
-    <p class="sub" id="status">กรุณารอสักครู่</p>
+    <h1 id="headline">Signing you in…</h1>
+    <p class="sub" id="status">Just a moment…</p>
     <script nonce="${nonce}">
       const CFG = ${cfg};
       const status = document.getElementById("status");
       function fail(message) {
         document.getElementById("spin").style.display = "none";
-        document.getElementById("headline").textContent = "เข้าสู่ระบบไม่สำเร็จ";
-        status.textContent = message + " — กรุณาเริ่มเชื่อมต่อใหม่จากแอปของคุณ";
+        document.getElementById("headline").textContent = "Sign-in failed";
+        status.textContent = message + " — please start the connection again from your app.";
       }
       (async () => {
         const hash = new URLSearchParams(location.hash.replace(/^#/, ""));
@@ -63,7 +63,7 @@ export async function GET(req: Request): Promise<Response> {
           hash.get("error_description") || query.get("error_description") ||
           hash.get("error") || query.get("error");
         const token = hash.get("access_token");
-        if (!token) return fail(error || "ไม่พบข้อมูลการเข้าสู่ระบบ");
+        if (!token) return fail(error || "No sign-in data received");
         try {
           const res = await fetch("/oauth/session", {
             method: "POST",
@@ -73,17 +73,17 @@ export async function GET(req: Request): Promise<Response> {
           if (!res.ok) {
             const data = await res.json().catch(() => null);
             const detail = (data && (data.error_description || data.error)) || ("HTTP " + res.status);
-            return fail("ยืนยันตัวตนไม่สำเร็จ: " + detail);
+            return fail("Verification failed: " + detail);
           }
           if (CFG.returnUrl) location.replace(CFG.returnUrl);
-          else fail("เข้าสู่ระบบสำเร็จ แต่ไม่พบหน้าที่ต้องกลับไป");
+          else fail("Signed in, but the page to return to was not found");
         } catch (e) {
-          fail("ยืนยันตัวตนไม่สำเร็จ: " + (e && e.message ? e.message : "network error"));
+          fail("Verification failed: " + (e && e.message ? e.message : "network error"));
         }
       })();
     </script>
   `,
-    "AskingFate — กำลังเข้าสู่ระบบ",
+    "AskingFate — Signing in",
   );
 
   const response = htmlResponse(200, html, { scriptNonce: nonce, connectSrc: [] });

@@ -3,8 +3,7 @@ import { TAROT_DECK } from "./cards";
 export interface ShuffledCard {
   /** Position in the shuffled deck, 0–77. The picking UI maps taps to this index. */
   i: number;
-  name_en: string;
-  name_th: string;
+  name: string;
   numeral: string;
   glyph: string;
   reversed: boolean;
@@ -36,8 +35,7 @@ export function shuffleDeck(): ShuffledCard[] {
     const card = TAROT_DECK[cardId];
     return {
       i,
-      name_en: card.name_en,
-      name_th: card.name_th,
+      name: card.name,
       numeral: card.numeral,
       glyph: card.glyph,
       reversed: secureRandomInt(2) === 1,
