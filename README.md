@@ -47,11 +47,17 @@ askingfate.com account system.
    `/.well-known/oauth-protected-resource`, which points at the authorization
    server metadata (`/.well-known/oauth-authorization-server`).
 2. Claude registers itself via **Dynamic Client Registration**
-   (`POST /oauth/register`, RFC 7591). Only public clients are accepted
-   (`token_endpoint_auth_method: "none"`); redirect URIs are checked against an
-   allowlist (`https://claude.ai/api/mcp/auth_callback`,
+   (`POST /oauth/register`, RFC 7591). Public clients
+   (`token_endpoint_auth_method: "none"`) and confidential clients
+   (`client_secret_post` / `client_secret_basic`, secret stored hashed) are
+   accepted; PKCE stays mandatory either way. Scope values are treated as
+   opaque labels (Claude sends `claudeai`) — only the format is validated.
+   Redirect URIs are checked against an allowlist
+   (`https://claude.ai/api/mcp/auth_callback`,
    `https://claude.com/api/mcp/auth_callback`, plus
-   `OAUTH_ALLOWED_REDIRECT_URIS`).
+   `OAUTH_ALLOWED_REDIRECT_URIS`). The endpoints are also aliased at the
+   MCP-spec default root paths (`/register`, `/authorize`, `/token`) for
+   clients that skip metadata discovery.
 3. The user lands on `GET /oauth/authorize`. No askingfate session → redirect
    to the main site's login page (`ASKINGFATE_LOGIN_URL`) with a callback back
    to the authorize URL. With a session → a short consent page (app name,

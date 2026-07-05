@@ -14,11 +14,15 @@
  *     restart, which breaks the flow on serverless multi-instance deploys.
  */
 
+export type TokenEndpointAuthMethod = "none" | "client_secret_post" | "client_secret_basic";
+
 export interface OAuthClient {
   client_id: string;
   client_name?: string;
   redirect_uris: string[];
-  token_endpoint_auth_method: "none";
+  token_endpoint_auth_method: TokenEndpointAuthMethod;
+  /** SHA-256 hex of the client secret — only set for confidential clients. */
+  client_secret_hash?: string;
   grant_types: string[];
   response_types: string[];
   scope?: string;

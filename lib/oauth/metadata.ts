@@ -42,8 +42,8 @@ export function authorizationServerMetadataResponse(req: Request): Response {
     response_types_supported: ["code"],
     response_modes_supported: ["query"],
     grant_types_supported: ["authorization_code", "refresh_token"],
-    // Public clients only: PKCE is mandatory, no client secrets are issued.
-    token_endpoint_auth_methods_supported: ["none"],
+    // PKCE is mandatory for every method, including confidential clients.
+    token_endpoint_auth_methods_supported: ["none", "client_secret_post", "client_secret_basic"],
     code_challenge_methods_supported: ["S256"],
     scopes_supported: [...SUPPORTED_SCOPES],
     service_documentation: "https://askingfate.com",

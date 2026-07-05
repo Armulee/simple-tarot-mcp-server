@@ -2,17 +2,21 @@
  * Dynamic Client Registration (RFC 7591) — Claude registers itself here
  * before starting the authorization flow.
  *
- * Only public clients are supported (token_endpoint_auth_method "none");
- * every flow is protected by mandatory PKCE instead of a client secret.
+ * Public clients (token_endpoint_auth_method "none") and confidential
+ * clients (client_secret_post / client_secret_basic) are both accepted;
+ * PKCE remains mandatory for every flow either way. Unknown metadata
+ * fields and unknown scope values (Claude sends "claudeai") are accepted,
+ * not rejected — strictness here breaks real clients.
  */
-import { DEFAULT_SCOPE, isRegistrableRedirectUri, scopeIsSupported } from "@/lib/oauth/config";
-import { randomToken } from "@/lib/oauth/crypto";
+import { DEFAULT_SCOPE, isRegistrableRedirectUri, isValidScopeString } from "@/lib/oauth/config";
+import { randomToken, sha256hex } from "@/lib/oauth/crypto";
 import { corsPreflight, enforceRateLimit, oauthError, oauthJson } from "@/lib/oauth/http";
-import { getOAuthStore, type OAuthClient } from "@/lib/oauth/store";
+import { getOAuthStore, type OAuthClient, type TokenEndpointAuthMethod } from "@/lib/oauth/store";
 
 export const maxDuration = 15;
 
 const ALLOWED_GRANT_TYPES = ["authorization_code", "refresh_token"];
+const AUTH_METHODS: TokenEndpointAuthMethod[] = ["none", "client_secret_post", "client_secret_basic"];
 const MAX_REDIRECT_URIS = 10;
 const MAX_CLIENT_NAME_LENGTH = 200;
 
@@ -61,13 +65,12 @@ export async function POST(req: Request): Promise<Response> {
     }
   }
 
-  // Public clients only.
-  const authMethod = body.token_endpoint_auth_method ?? "none";
-  if (authMethod !== "none") {
+  const authMethod = (body.token_endpoint_auth_method ?? "none") as TokenEndpointAuthMethod;
+  if (!AUTH_METHODS.includes(authMethod)) {
     return oauthError(
       400,
       "invalid_client_metadata",
-      'Only public clients are supported: token_endpoint_auth_method must be "none".',
+      `token_endpoint_auth_method must be one of: ${AUTH_METHODS.join(", ")}.`,
     );
   }
 
@@ -90,10 +93,11 @@ export async function POST(req: Request): Promise<Response> {
     return oauthError(400, "invalid_client_metadata", 'response_types must be ["code"].');
   }
 
+  // Scope values are treated as opaque labels — validate the format only.
   let scope: string | undefined;
-  if (body.scope !== undefined) {
-    if (typeof body.scope !== "string" || !scopeIsSupported(body.scope)) {
-      return oauthError(400, "invalid_client_metadata", "Requested scope is not supported.");
+  if (body.scope !== undefined && body.scope !== "") {
+    if (typeof body.scope !== "string" || !isValidScopeString(body.scope)) {
+      return oauthError(400, "invalid_client_metadata", "scope is malformed.");
     }
     scope = body.scope;
   }
@@ -107,11 +111,15 @@ export async function POST(req: Request): Promise<Response> {
     clientName = body.client_name.replace(/[\x00-\x1f\x7f]/g, "").trim().slice(0, MAX_CLIENT_NAME_LENGTH);
   }
 
+  // Confidential clients get a secret (returned once, stored only as a hash).
+  const clientSecret = authMethod === "none" ? undefined : randomToken(32);
+
   const client: OAuthClient = {
     client_id: `af_${randomToken(24)}`,
     client_name: clientName || undefined,
     redirect_uris: redirectUris as string[],
-    token_endpoint_auth_method: "none",
+    token_endpoint_auth_method: authMethod,
+    client_secret_hash: clientSecret ? sha256hex(clientSecret) : undefined,
     grant_types: grantTypes as string[],
     response_types: ["code"],
     scope: scope ?? DEFAULT_SCOPE,
@@ -127,6 +135,7 @@ export async function POST(req: Request): Promise<Response> {
   return oauthJson(201, {
     client_id: client.client_id,
     client_id_issued_at: client.created_at,
+    ...(clientSecret ? { client_secret: clientSecret, client_secret_expires_at: 0 } : {}),
     client_name: client.client_name,
     redirect_uris: client.redirect_uris,
     token_endpoint_auth_method: client.token_endpoint_auth_method,

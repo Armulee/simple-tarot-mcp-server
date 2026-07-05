@@ -12,10 +12,10 @@
 import {
   AUTH_CODE_TTL_SECONDS,
   DEFAULT_SCOPE,
+  isValidScopeString,
   issuerFromRequest,
   mcpResourceUrl,
   publicRequestUrl,
-  scopeIsSupported,
 } from "@/lib/oauth/config";
 import { isValidCodeChallenge, randomToken, sha256hex } from "@/lib/oauth/crypto";
 import { buildRedirect, escapeHtml, htmlResponse, redirectResponse } from "@/lib/oauth/http";
@@ -29,6 +29,7 @@ const CONSENT_COOKIE = "af_oauth_consent";
 
 const SCOPE_DESCRIPTIONS: Record<string, string> = {
   mcp: "ใช้เครื่องมือดูดวงของ Asking Fate ในนามของคุณ (ไพ่ทาโรต์, ดวงไทย, ราศี, ฤกษ์มงคล)",
+  claudeai: "ให้ Claude ใช้เครื่องมือดูดวงของ Asking Fate ในนามของคุณ",
 };
 
 /* ------------------------------------------------------------------ */
@@ -84,9 +85,10 @@ export async function GET(req: Request): Promise<Response> {
     return fail("invalid_request", "code_challenge_method must be S256.");
   }
 
+  // Scopes are opaque labels (Claude sends "claudeai") — format check only.
   const scope = params.get("scope")?.trim() || client.scope || DEFAULT_SCOPE;
-  if (!scopeIsSupported(scope)) {
-    return fail("invalid_scope", "Requested scope is not supported.");
+  if (!isValidScopeString(scope)) {
+    return fail("invalid_scope", "Malformed scope parameter.");
   }
 
   // RFC 8707 resource indicator: if present it must be our MCP endpoint.

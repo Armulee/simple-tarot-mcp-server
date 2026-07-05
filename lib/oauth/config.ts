@@ -7,8 +7,13 @@
  */
 import { getPublicOrigin, getPublicUrl } from "mcp-handler";
 
-/** Scopes this server understands. Keep in sync with metadata endpoints. */
-export const SUPPORTED_SCOPES = ["mcp"] as const;
+/**
+ * Scopes advertised in metadata. Claude sends its own scope value
+ * ("claudeai") during registration/authorization, so scope handling is
+ * PERMISSIVE: any well-formed scope token is accepted and echoed back —
+ * scopes are labels here, they don't gate individual tools.
+ */
+export const SUPPORTED_SCOPES = ["claudeai", "mcp"] as const;
 export const DEFAULT_SCOPE = "mcp";
 
 export const ACCESS_TOKEN_TTL_SECONDS = 60 * 60; // 1 hour
@@ -87,9 +92,14 @@ export function publicRequestUrl(req: Request): string {
   return getPublicUrl(req).toString();
 }
 
-export function scopeIsSupported(scope: string): boolean {
-  return scope
-    .split(" ")
-    .filter(Boolean)
-    .every((s) => (SUPPORTED_SCOPES as readonly string[]).includes(s));
+/**
+ * RFC 6749 §3.3 scope-token charset: %x21 / %x23-5B / %x5D-7E (printable
+ * ASCII except space, double-quote and backslash), space-delimited.
+ */
+const SCOPE_TOKEN_PATTERN = /^[!#-[\]-~]+$/;
+
+export function isValidScopeString(scope: string): boolean {
+  const tokens = scope.split(" ").filter(Boolean);
+  if (tokens.length === 0 || tokens.length > 16) return false;
+  return tokens.every((t) => t.length <= 128 && SCOPE_TOKEN_PATTERN.test(t));
 }
