@@ -1,41 +1,35 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/create-next-app).
+# Asking Fate — MCP Server
 
-## Getting Started
+Remote MCP server for [askingfate.com](https://askingfate.com) fortune-telling services, built with Next.js (App Router, API-only) and [`mcp-handler`](https://www.npmjs.com/package/mcp-handler).
 
-First, run the development server:
+**Endpoint:** `https://mcp.askingfate.com/api/mcp` (Streamable HTTP only — SSE is disabled, no Redis required)
+
+## Tools
+
+| Tool | Description |
+| --- | --- |
+| `draw_tarot_spread` | Shuffles the full 78-card deck (crypto-random, no duplicates, upright/reversed) and opens an interactive MCP App UI where the user taps face-down cards arranged in a fan to complete the spread (`single`, `three_card`, or `celtic_cross`). The user's picks are sent back to the host for the model to interpret. |
+| `get_thai_horoscope` | Structured Thai astrology data (ตำราทักษา) for a birth date: day planet, element, lucky/kalakini colours, lucky numbers, the eight Thaksa positions, and an approximate ascendant when a birth time is given. |
+| `get_zodiac_info` | Western (tropical) sign with element/quality/ruling planet, approximate Thai sidereal sign, and the Thai/Chinese 12-year animal with year-boundary caveats. |
+| `get_auspicious_dates` | Auspicious dates in a month for a purpose (`wedding`, `business`, `moving`, `car`) rated by traditional Thai day-of-week principles, with reasons and days to avoid. |
+
+All tools are read-only (`readOnlyHint: true`), computed from static data modules — no external APIs. Tool results return structured JSON for the model to interpret; the server does not generate fortune text.
+
+## Development
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
+npm run dev     # then connect an MCP client to http://localhost:3000/api/mcp
+npm run build   # production build + strict TypeScript check
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Layout
 
-You can start editing the page by modifying `app/route.ts`. The page auto-updates as you edit the file.
+- `app/api/[transport]/route.ts` — MCP handler (basePath `/api`), tool registration, CORS
+- `lib/tarot/` — 78-card deck data, spread definitions, crypto-random shuffle
+- `lib/astro/` — Thai Thaksa tables, horoscope/zodiac/auspicious-date logic
+- `lib/mcp/tarot-app-html.ts` — self-contained card-picking MCP App (sandboxed iframe, no storage APIs)
 
-## Learn More
+## Auth
 
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
-
-## API Routes
-
-This directory contains example API routes for the headless API app.
-
-For more details, see [route.js file convention](https://nextjs.org/docs/app/api-reference/file-conventions/route).
-# simple-tarot-mcp-server
+This version exposes public tools without auth. To add OAuth later, wrap the handler with `withMcpAuth` from `mcp-handler` (see the comment in `app/api/[transport]/route.ts`).
