@@ -92,7 +92,12 @@ export function htmlResponse(
       "Content-Type": "text/html; charset=utf-8",
       "X-Frame-Options": "DENY",
       "Content-Security-Policy": csp,
-      "Referrer-Policy": "no-referrer",
+      // "same-origin", not "no-referrer": the consent form POSTs back to this
+      // same origin and the CSRF check needs that same-origin Origin/Referer
+      // to survive. "no-referrer" strips it — and on WebKit in-app browsers it
+      // also forces `Origin: null` on the form submit. Third parties still get
+      // no referrer, so the sensitive authorize URL never leaks off-site.
+      "Referrer-Policy": "same-origin",
     },
   });
 }
@@ -105,17 +110,21 @@ export function htmlResponse(
  * mobile in-app browsers dropping or clearing the cookie jar mid-flow.
  */
 export function isSameOriginRequest(req: Request, issuer: string): boolean {
-  const source = req.headers.get("origin") ?? req.headers.get("referer");
-  if (!source) return false;
-  try {
-    const url = new URL(source);
-    if (url.origin === issuer) return true;
-    const host =
-      req.headers.get("x-forwarded-host")?.split(",")[0]?.trim() || req.headers.get("host");
-    return !!host && url.host === host;
-  } catch {
-    return false;
+  const host =
+    req.headers.get("x-forwarded-host")?.split(",")[0]?.trim() || req.headers.get("host");
+  // Try Origin first, then Referer. WebKit in-app browsers can send
+  // `Origin: null` on form submits, so a missing/unparseable Origin must fall
+  // through to the Referer instead of failing the whole check.
+  for (const value of [req.headers.get("origin"), req.headers.get("referer")]) {
+    if (!value || value === "null") continue;
+    try {
+      const url = new URL(value);
+      if (url.origin === issuer || (host && url.host === host)) return true;
+    } catch {
+      // unparseable header — try the next one
+    }
   }
+  return false;
 }
 
 export function parseCookies(header: string | null): Record<string, string> {
