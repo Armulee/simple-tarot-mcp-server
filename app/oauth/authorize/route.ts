@@ -298,9 +298,9 @@ function consentPage({
   return pageShell(
     `
     <div class="brand">
-      <img src="/assets/logo.png" alt="AskingFate" />
-      <div class="dots"><i></i><i></i><i></i></div>
       ${connectorBadge}
+      <div class="dots"><i></i><i></i><i></i></div>
+      <img src="/assets/logo.png" alt="AskingFate" />
     </div>
     <h1>Authorize connection</h1>
     <p class="sub"><strong>${escapeHtml(clientName)}</strong> wants to connect to your <strong>AskingFate</strong> account</p>
