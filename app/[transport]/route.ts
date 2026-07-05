@@ -1,17 +1,15 @@
 /**
  * Asking Fate — remote MCP server (Streamable HTTP only).
  *
- * Endpoint: /api/mcp  (deployed as https://mcp.askingfate.com/api/mcp)
+ * Endpoint: /mcp  (deployed as https://mcp.askingfate.com/mcp)
  *
- * This version exposes public tools with no auth. To add OAuth later, wrap
- * `handler` with mcp-handler's `withMcpAuth` and export that instead:
- *
- *   import { withMcpAuth } from "mcp-handler";
- *   const verifyToken = async (req: Request, bearerToken?: string) =>
- *     bearerToken ? verifyWithYourIdp(bearerToken) : undefined; // returns AuthInfo | undefined
- *   const authHandler = withMcpAuth(handler, verifyToken, { required: true });
+ * OAuth 2.1 protected: every request must carry a Bearer JWT issued by this
+ * server's own authorization endpoints (see app/oauth/* and
+ * app/.well-known/*). Requests without a valid token get 401 with a
+ * WWW-Authenticate header pointing at the protected-resource metadata.
+ * Tools can read the authenticated user via `extra.authInfo.extra.userId`.
  */
-import { createMcpHandler } from "mcp-handler";
+import { createMcpHandler, withMcpAuth } from "mcp-handler";
 import {
   registerAppResource,
   registerAppTool,
@@ -26,6 +24,7 @@ import { buildThaiHoroscope, HoroscopeCategory } from "@/lib/astro/thai-horoscop
 import { buildZodiacInfo } from "@/lib/astro/zodiac";
 import { buildAuspiciousDates, parseMonth, Purpose } from "@/lib/astro/auspicious";
 import { TAROT_APP_HTML, TAROT_APP_URI } from "@/lib/mcp/tarot-app-html";
+import { verifyMcpToken } from "@/lib/oauth/mcp-auth";
 
 export const maxDuration = 60;
 
@@ -287,12 +286,22 @@ const handler = createMcpHandler(
       "Asking Fate (askingfate.com) fortune-telling tools: draw_tarot_spread opens an interactive card-picking UI (wait for the user's picks before interpreting), while get_thai_horoscope, get_zodiac_info and get_auspicious_dates return structured Thai-astrology reference data for you to interpret. All tools are read-only and computed from traditional tables — present readings as guidance based on หลักโหราศาสตร์, never as guaranteed predictions.",
   },
   {
-    basePath: "/api", // matches app/api/[transport]/route.ts → endpoint is /api/mcp
+    basePath: "", // matches app/[transport]/route.ts → endpoint is /mcp
     maxDuration: 60,
     disableSse: true, // Streamable HTTP only, no Redis needed
     verboseLogs: process.env.MCP_VERBOSE_LOGS === "true",
   },
 );
+
+/**
+ * OAuth layer: verify the Bearer JWT and inject AuthInfo (user_id in
+ * `extra.userId`) into every tool's context. `required: true` — no token, no
+ * tools; mcp-handler answers 401 + WWW-Authenticate → resource metadata.
+ */
+const authHandler = withMcpAuth(handler, verifyMcpToken, {
+  required: true,
+  resourceMetadataPath: "/.well-known/oauth-protected-resource",
+});
 
 /**
  * CORS for browser-based MCP clients and MCP App iframes.
@@ -308,7 +317,7 @@ const CORS_HEADERS: Readonly<Record<string, string>> = {
 };
 
 async function handleWithCors(request: Request): Promise<Response> {
-  const response = await handler(request);
+  const response = await authHandler(request);
   const headers = new Headers(response.headers);
   for (const [key, value] of Object.entries(CORS_HEADERS)) headers.set(key, value);
   return new Response(response.body, {

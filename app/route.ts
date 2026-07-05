@@ -6,8 +6,14 @@ export async function GET() {
     name: "Asking Fate MCP Server",
     description:
       "Remote MCP server for askingfate.com fortune-telling services: tarot spreads with an interactive card-picking UI, Thai horoscope data, zodiac info, and auspicious dates.",
-    mcp_endpoint: "/api/mcp",
+    mcp_endpoint: "/mcp",
     transport: "streamable-http",
+    authentication: {
+      type: "oauth2.1",
+      required: true,
+      protected_resource_metadata: "/.well-known/oauth-protected-resource",
+      authorization_server_metadata: "/.well-known/oauth-authorization-server",
+    },
     tools: [
       "draw_tarot_spread",
       "get_thai_horoscope",
