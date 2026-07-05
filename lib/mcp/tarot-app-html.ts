@@ -11,11 +11,15 @@
  *                              ui/notifications/tool-cancelled
  *   host → view  request       ping, ui/resource-teardown
  *
- * The card deck arrives via the draw_tarot_spread tool result
- * (structuredContent.deck: 78 pre-shuffled cards). The deck is laid out as a
- * linear, horizontally-scrollable spread of face-down cards; the user slides a
- * card upward to select it (matching the simple-tarot web app's card picker).
- * Picks map to deck indices, so the server-side shuffle stays authoritative.
+ * The layout mirrors the simple-tarot web app's card picker: a question header,
+ * a "selected X/N" counter, the "costs 1 star" line, Shuffle / Pick-for-me /
+ * overflow controls, and a linear horizontally-scrollable deck of face-down
+ * cosmic cards that the user slides upward to select. The user's real star
+ * balance (structuredContent.stars) is shown top-right. UI language follows
+ * structuredContent.locale (th | en), falling back to detecting Thai script in
+ * the question. The deck arrives via the draw_tarot_spread tool result
+ * (structuredContent.deck: 78 pre-shuffled cards); picks map to deck indices so
+ * the server-side shuffle stays authoritative.
  */
 
 export const TAROT_APP_URI = "ui://askingfate/tarot-picker.html";
@@ -28,163 +32,121 @@ export const TAROT_APP_HTML = /* html */ `<!DOCTYPE html>
 <title>AskingFate — Tarot Reading</title>
 <style>
   :root {
-    --purple-deepest: #140a26;
-    --purple-deep: #1f1038;
-    --purple-mid: #2d1b4e;
-    --purple-soft: #47307a;
-    --gold: #d4af37;
-    --gold-bright: #f0c75e;
-    --gold-dim: #9c7f2c;
-    --ink: #f3ecdc;
-    --ink-dim: #b8a98a;
-    /* linear-deck card back (matches the simple-tarot web app) */
+    --bg-deepest: #08060f;
+    --bg-deep: #0e0b1a;
+    --panel: rgba(255, 255, 255, 0.04);
+    --border: rgba(255, 255, 255, 0.12);
+    --gold: #f5c451;
+    --ink: #f3ecf7;
+    --ink-dim: #9b93ad;
     --edge-blue: #15a6ff;
     --edge-purple: #b56cff;
     --sigil: #fcd34d;
+    --aura-blue: rgba(59, 130, 246, 0.85);
+    --aura-purple: rgba(124, 58, 237, 0.7);
   }
   * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
   html, body { background: transparent; }
   body {
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans Thai", sans-serif;
     color: var(--ink);
-    user-select: none;
-    -webkit-user-select: none;
+    user-select: none; -webkit-user-select: none;
   }
   #stage {
-    position: relative;
-    overflow: hidden;
-    border-radius: 16px;
-    background:
-      radial-gradient(120% 80% at 50% 0%, var(--purple-mid) 0%, var(--purple-deep) 55%, var(--purple-deepest) 100%);
-    border: 1px solid rgba(212, 175, 55, 0.35);
-    padding: 18px 12px 20px;
+    position: relative; overflow: hidden; border-radius: 20px;
+    background: radial-gradient(130% 90% at 50% -10%, var(--bg-deep) 0%, var(--bg-deepest) 70%);
+    border: 1px solid var(--border);
+    padding: 18px 14px 18px;
     min-height: 300px;
   }
-  #stage::before {
-    content: "";
-    position: absolute; inset: 6px;
-    border: 1px solid rgba(212, 175, 55, 0.18);
-    border-radius: 12px;
-    pointer-events: none;
-  }
-  /* Twinkling starfield — same repeating patterns as the main site's cosmic background */
-  .cstars {
-    position: absolute; inset: 0; pointer-events: none; z-index: 0;
-    background-repeat: repeat; background-size: 200px 100px;
-  }
+  /* twinkling starfield */
+  .cstars { position: absolute; inset: 0; pointer-events: none; z-index: 0; background-repeat: repeat; background-size: 200px 100px; }
   .cstars.c1 {
-    background-image: radial-gradient(1px 1px at 25px 15px, white, transparent),
-      radial-gradient(2px 2px at 55px 85px, white, transparent),
-      radial-gradient(1px 1px at 95px 25px, white, transparent),
-      radial-gradient(2px 2px at 135px 75px, white, transparent),
-      radial-gradient(1px 1px at 175px 45px, white, transparent);
+    background-image: radial-gradient(1px 1px at 25px 15px, #fff, transparent),
+      radial-gradient(2px 2px at 55px 85px, #fff, transparent),
+      radial-gradient(1px 1px at 95px 25px, #fff, transparent),
+      radial-gradient(2px 2px at 135px 75px, #fff, transparent),
+      radial-gradient(1px 1px at 175px 45px, #fff, transparent);
     animation: twinkle-a 4.3s ease-in-out infinite;
   }
   .cstars.c2 {
-    background-image: radial-gradient(2px 2px at 45px 65px, white, transparent),
-      radial-gradient(1px 1px at 85px 35px, white, transparent),
-      radial-gradient(2px 2px at 125px 85px, white, transparent),
-      radial-gradient(1px 1px at 165px 15px, white, transparent),
-      radial-gradient(1px 1px at 195px 55px, white, transparent);
+    background-image: radial-gradient(2px 2px at 45px 65px, #fff, transparent),
+      radial-gradient(1px 1px at 85px 35px, #fff, transparent),
+      radial-gradient(2px 2px at 125px 85px, #fff, transparent),
+      radial-gradient(1px 1px at 165px 15px, #fff, transparent),
+      radial-gradient(1px 1px at 195px 55px, #fff, transparent);
     animation: twinkle-b 3.5s ease-in-out infinite;
   }
-  @keyframes twinkle-a { 0%, 100% { opacity: 0.2; } 10% { opacity: 0.7; } 45% { opacity: 0.3; } 70% { opacity: 1; } 85% { opacity: 0.4; } }
-  @keyframes twinkle-b { 0%, 100% { opacity: 0.5; } 25% { opacity: 0.2; } 50% { opacity: 0.9; } 75% { opacity: 0.3; } }
+  @keyframes twinkle-a { 0%, 100% { opacity: 0.2; } 10% { opacity: 0.6; } 45% { opacity: 0.3; } 70% { opacity: 0.9; } 85% { opacity: 0.4; } }
+  @keyframes twinkle-b { 0%, 100% { opacity: 0.45; } 25% { opacity: 0.2; } 50% { opacity: 0.85; } 75% { opacity: 0.3; } }
   #stage > :not(.cstars) { position: relative; z-index: 1; }
-  header { text-align: center; position: relative; }
-  header h1 {
-    font-size: 15px; letter-spacing: 0.35em; text-transform: uppercase;
-    color: var(--gold-bright); font-weight: 600;
+
+  /* ---- star balance badge (top-right) ---- */
+  #starbadge {
+    position: absolute; top: 12px; right: 12px; z-index: 3;
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 5px 11px 5px 9px; border-radius: 999px;
+    background: rgba(245, 196, 81, 0.12);
+    border: 1px solid rgba(245, 196, 81, 0.4);
+    color: var(--gold); font-size: 13px; font-weight: 700;
+    box-shadow: 0 0 14px rgba(245, 196, 81, 0.15);
   }
-  header .rule {
-    width: 140px; height: 1px; margin: 8px auto;
-    background: linear-gradient(90deg, transparent, var(--gold), transparent);
-  }
-  #subtitle { font-size: 13px; color: var(--ink-dim); }
+  #starbadge[hidden] { display: none; }
+  #starbadge svg { width: 14px; height: 14px; fill: var(--gold); }
+
+  /* ---- header ---- */
+  header { text-align: center; padding: 4px 34px 0; }
   #question {
-    font-size: 13px; color: var(--ink); margin-top: 6px; font-style: italic;
+    font-size: 12px; color: var(--ink-dim); margin-bottom: 6px;
     overflow: hidden; text-overflow: ellipsis; display: -webkit-box;
     -webkit-line-clamp: 2; -webkit-box-orient: vertical;
   }
   #question:empty { display: none; }
+  #counter { font-size: 19px; font-weight: 700; color: var(--ink); line-height: 1.3; }
+  #starcost {
+    display: inline-flex; align-items: center; gap: 6px; margin-top: 8px;
+    font-size: 13px; color: var(--gold);
+  }
+  #starcost svg { width: 14px; height: 14px; fill: var(--gold); }
+  #starcost[hidden] { display: none; }
 
-  /* ---- chosen-card slots ---- */
-  #slots {
-    display: flex; flex-wrap: wrap; justify-content: center;
-    gap: 10px; margin: 16px 4px 4px;
+  /* ---- control buttons ---- */
+  #controls { display: flex; justify-content: center; align-items: center; gap: 9px; margin: 15px 0 4px; }
+  #controls[hidden] { display: none; }
+  .ctl {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-family: inherit; font-size: 13px; color: var(--ink);
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 999px; padding: 8px 15px; cursor: pointer;
+    transition: background 0.15s ease, border-color 0.15s ease;
   }
-  .slot { width: 78px; text-align: center; }
-  body.s-10 .slot { width: 58px; }
-  .slot .well {
-    position: relative; width: 100%; aspect-ratio: 5 / 8;
-    perspective: 700px;
+  .ctl:active { background: rgba(255, 255, 255, 0.09); }
+  .ctl svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  .ctl.icon { padding: 8px; width: 38px; justify-content: center; }
+  .ctl.icon svg { fill: currentColor; stroke: none; }
+  .ctl[disabled] { opacity: 0.4; pointer-events: none; }
+  #menuwrap { position: relative; }
+  #menu {
+    position: absolute; top: calc(100% + 6px); right: 0; z-index: 5;
+    min-width: 150px; padding: 5px; border-radius: 12px;
+    background: #171325; border: 1px solid var(--border);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.55);
   }
-  .slot .flip {
-    position: absolute; inset: 0;
-    transform-style: preserve-3d;
-    transition: transform 0.7s cubic-bezier(0.25, 0.7, 0.3, 1);
+  #menu[hidden] { display: none; }
+  .menu-item {
+    display: flex; align-items: center; gap: 9px; width: 100%;
+    font-family: inherit; font-size: 13px; color: var(--ink); text-align: left;
+    background: transparent; border: 0; border-radius: 8px; padding: 9px 10px; cursor: pointer;
   }
-  .slot.filled .flip { transform: rotateY(180deg); }
-  .face {
-    position: absolute; inset: 0; border-radius: 7px;
-    backface-visibility: hidden; -webkit-backface-visibility: hidden;
-  }
-  .face.back {
-    border: 1px dashed rgba(212, 175, 55, 0.5);
-    background: rgba(212, 175, 55, 0.06);
-    display: flex; align-items: center; justify-content: center;
-    color: var(--gold-dim); font-size: 18px;
-  }
-  .face.front {
-    transform: rotateY(180deg);
-    background:
-      radial-gradient(circle at 30% 15%, rgba(123, 44, 191, 0.65) 0%, transparent 55%),
-      radial-gradient(circle at 80% 85%, rgba(0, 188, 212, 0.4) 0%, transparent 55%),
-      linear-gradient(135deg, #0a0a1e 0%, #1a0b2e 60%, #2d1b4e 100%);
-    border: 1px solid var(--gold);
-    box-shadow: 0 0 14px rgba(212, 175, 55, 0.45), inset 0 0 0 2px rgba(212, 175, 55, 0.25);
-    overflow: hidden;
-  }
-  .cardface {
-    position: absolute; inset: 0; padding: 6px 3px;
-    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
-  }
-  .cardface.rev { transform: rotate(180deg); }
-  .cardface .glyph { font-size: 17px; color: var(--gold-bright); line-height: 1; }
-  .cardface .numeral { font-size: 10px; color: var(--gold); letter-spacing: 0.1em; }
-  .cardface .name {
-    font-size: 10px; font-weight: 700; color: var(--ink);
-    text-align: center; line-height: 1.25; word-break: break-word;
-  }
-  body.s-10 .cardface .glyph { font-size: 13px; }
-  body.s-10 .cardface .name { font-size: 8px; }
-  .revbadge {
-    position: absolute; top: 3px; right: 4px; font-size: 9px; color: var(--gold-bright);
-  }
-  .slot .plabel {
-    margin-top: 5px; font-size: 10px; color: var(--gold); line-height: 1.3;
-    letter-spacing: 0.02em;
-  }
-  .slot.filled .well { animation: glowpulse 0.9s ease-out; }
-  @keyframes glowpulse {
-    0% { filter: drop-shadow(0 0 0 rgba(240, 199, 94, 0)); }
-    40% { filter: drop-shadow(0 0 16px rgba(240, 199, 94, 0.9)); }
-    100% { filter: drop-shadow(0 0 0 rgba(240, 199, 94, 0)); }
-  }
+  .menu-item:active { background: rgba(255, 255, 255, 0.07); }
+  .menu-item svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 
-  #counter {
-    text-align: center; font-size: 12px; color: var(--ink-dim); margin-top: 12px;
-    min-height: 16px;
-  }
-  #counter b { color: var(--gold-bright); font-weight: 600; }
-
-  /* ---- the linear deck of face-down cards (slide a card up to pick) ---- */
+  /* ---- the linear deck (slide a card up to pick) ---- */
   #deckwrap {
-    margin-top: 8px; overflow-x: auto; overflow-y: hidden;
-    -webkit-overflow-scrolling: touch;
-    scrollbar-width: none;
-    touch-action: pan-x;
+    margin-top: 10px; overflow-x: auto; overflow-y: hidden;
+    -webkit-overflow-scrolling: touch; scrollbar-width: none; touch-action: pan-x;
   }
+  #deckwrap[hidden] { display: none; }
   #deckwrap::-webkit-scrollbar { display: none; }
   #deck { position: relative; height: 232px; }
   .dcard {
@@ -193,27 +155,20 @@ export const TAROT_APP_HTML = /* html */ `<!DOCTYPE html>
     transition: transform 0.18s ease, opacity 0.4s ease;
   }
   .dcard.dragging { transition: none; cursor: grabbing; }
-  /* blue→purple gradient border */
   .dcard .cframe {
     width: 100%; height: 100%; border-radius: 14px; padding: 1px;
     background: linear-gradient(135deg, var(--edge-blue), var(--edge-purple) 50%, var(--edge-blue));
     box-shadow: 0 6px 14px rgba(0, 0, 0, 0.5);
   }
-  /* white inner frame */
-  .dcard .cwhite {
-    width: 100%; height: 100%; border-radius: 13px; background: #fff; padding: 3px;
-  }
-  /* cosmic interior */
+  .dcard .cwhite { width: 100%; height: 100%; border-radius: 13px; background: #fff; padding: 3px; }
   .dcard .cinner {
     position: relative; width: 100%; height: 100%; border-radius: 10px; overflow: hidden;
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    box-shadow: inset 0 0 26px rgba(0, 0, 0, 0.6);
+    border: 1px solid rgba(255, 255, 255, 0.1); box-shadow: inset 0 0 26px rgba(0, 0, 0, 0.6);
     background:
       radial-gradient(circle at 30% 20%, rgba(123, 44, 191, 0.9) 0%, transparent 42%),
       radial-gradient(circle at 70% 80%, rgba(0, 188, 212, 0.85) 0%, transparent 46%),
       linear-gradient(135deg, #05081a 0%, #1a0b2e 60%, #3b0f4a 100%);
-    display: flex; align-items: center; justify-content: center;
-    transition: filter 0.3s ease;
+    display: flex; align-items: center; justify-content: center; transition: filter 0.3s ease;
   }
   .dcard .cinner::before {
     content: ""; position: absolute; inset: 0; pointer-events: none;
@@ -224,24 +179,15 @@ export const TAROT_APP_HTML = /* html */ `<!DOCTYPE html>
       radial-gradient(1px 1px at 60% 20%, #fff 99%, transparent),
       radial-gradient(1px 1px at 75% 25%, #fff 99%, transparent);
   }
-  .dcard .csigil {
-    position: relative; color: var(--sigil); font-size: 22px; line-height: 1;
-    text-shadow: 0 0 8px rgba(252, 211, 77, 0.6);
-  }
-  /* aura when a card is lifted past the pick threshold */
-  .dcard.aura .cframe {
-    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.85), 0 0 24px 8px rgba(124, 58, 237, 0.7), 0 0 54px 20px rgba(59, 130, 246, 0.5);
-  }
+  .dcard .csigil { position: relative; color: var(--sigil); font-size: 22px; line-height: 1; text-shadow: 0 0 8px rgba(252, 211, 77, 0.6); }
+  .dcard.aura .cframe { box-shadow: 0 0 0 2px var(--aura-blue), 0 0 24px 8px var(--aura-purple), 0 0 54px 20px rgba(59, 130, 246, 0.5); }
   .dcard.aura .cinner { filter: saturate(1.25) brightness(1.08); }
   .dcard.taken { opacity: 0; pointer-events: none; }
-  @media (hover: hover) {
-    .dcard:not(.taken):hover .cinner { filter: brightness(1.15); }
-  }
+  @media (hover: hover) { .dcard:not(.taken):hover .cinner { filter: brightness(1.15); } }
 
-  /* swipe-up teaching overlay, shown when a card is tapped */
+  /* swipe-up teaching overlay */
   #swipehint {
-    position: absolute; z-index: 60; pointer-events: none;
-    transform: translateX(-50%);
+    position: absolute; z-index: 6; pointer-events: none; transform: translateX(-50%);
     display: none; flex-direction: column; align-items: center;
     filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.6));
   }
@@ -251,35 +197,30 @@ export const TAROT_APP_HTML = /* html */ `<!DOCTYPE html>
     display: flex; align-items: center; justify-content: center;
     animation: sbounce 0.9s ease-in-out infinite;
   }
-  #swipehint .ring svg { width: 22px; height: 22px; stroke: #fff; }
-  #swipehint .pill {
-    margin-top: 6px; font-size: 10px; color: #fff; white-space: nowrap;
-    background: rgba(0, 0, 0, 0.5); padding: 2px 9px; border-radius: 999px;
-  }
+  #swipehint .ring svg { width: 22px; height: 22px; stroke: #fff; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  #swipehint .pill { margin-top: 6px; font-size: 10px; color: #fff; white-space: nowrap; background: rgba(0, 0, 0, 0.5); padding: 2px 9px; border-radius: 999px; }
   @keyframes sbounce { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-9px); } }
-  #deckhint { text-align: center; font-size: 11px; color: var(--ink-dim); opacity: 0.85; margin-top: 4px; }
+  #deckhint { text-align: center; font-size: 12px; color: var(--ink-dim); opacity: 0.9; margin-top: 6px; }
+  #deckhint[hidden] { display: none; }
 
   /* ---- done / status panel ---- */
-  #panel {
-    margin: 14px auto 0; max-width: 340px; text-align: center;
-    font-size: 13px; line-height: 1.6; color: var(--ink);
-  }
+  #panel { margin: 16px auto 4px; max-width: 340px; text-align: center; font-size: 13px; line-height: 1.6; color: var(--ink); }
   #panel[hidden] { display: none; }
-  #panel .big { font-size: 15px; color: var(--gold-bright); margin-bottom: 4px; }
+  #panel .big { font-size: 15px; color: var(--gold); margin-bottom: 4px; }
   #resend {
     margin-top: 10px; padding: 9px 22px; font-size: 13px; font-family: inherit;
-    color: var(--purple-deepest); background: linear-gradient(180deg, var(--gold-bright), var(--gold));
+    color: #1a1030; background: linear-gradient(180deg, #f7d878, var(--gold));
     border: none; border-radius: 999px; cursor: pointer; font-weight: 700;
   }
   #resend[hidden] { display: none; }
 
-  .waiting #slots, .waiting #deckwrap, .waiting #counter, .waiting #deckhint { display: none; }
+  .waiting #controls, .waiting #deckwrap, .waiting #deckhint, .waiting #starcost { display: none; }
   .shimmer { animation: shimmer 1.6s ease-in-out infinite; }
   @keyframes shimmer { 0%, 100% { opacity: 0.55; } 50% { opacity: 1; } }
 
   @media (prefers-reduced-motion: reduce) {
-    .slot .flip, .dcard { transition: none; }
-    .slot.filled .well, .shimmer, .cstars, #swipehint .ring { animation: none; }
+    .dcard { transition: none; }
+    .shimmer, .cstars, #swipehint .ring { animation: none; }
   }
 </style>
 </head>
@@ -287,25 +228,81 @@ export const TAROT_APP_HTML = /* html */ `<!DOCTYPE html>
 <div id="stage" class="waiting">
   <div class="cstars c1"></div>
   <div class="cstars c2"></div>
+  <div id="starbadge" hidden><svg viewBox="0 0 24 24"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg><b id="starcount">0</b></div>
   <header>
-    <h1>✦ AskingFate ✦</h1>
-    <div class="rule"></div>
-    <p id="subtitle" class="shimmer">Shuffling the deck…</p>
     <p id="question"></p>
+    <p id="counter" class="shimmer">Shuffling the deck…</p>
+    <p id="starcost" hidden><svg viewBox="0 0 24 24"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg><span id="starcost-text"></span></p>
   </header>
-  <section id="slots" aria-label="Chosen cards"></section>
-  <p id="counter"></p>
-  <section id="deckwrap" aria-label="The deck"><div id="deck"></div></section>
-  <p id="deckhint">Scroll the deck sideways, then slide a card up to choose it</p>
+
+  <div id="controls" hidden>
+    <button id="btn-shuffle" class="ctl" type="button">
+      <svg viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v5h-5"/></svg>
+      <span id="lbl-shuffle"></span>
+    </button>
+    <button id="btn-pick" class="ctl" type="button">
+      <svg viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M12 3l1.7 4.6L18 9l-4.3 1.4L12 15l-1.7-4.6L6 9l4.3-1.4z"/></svg>
+      <span id="lbl-pick"></span>
+    </button>
+    <div id="menuwrap">
+      <button id="btn-menu" class="ctl icon" type="button" aria-label="More">
+        <svg viewBox="0 0 24 24" fill="currentColor" stroke="none"><circle cx="12" cy="5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="19" r="1.7"/></svg>
+      </button>
+      <div id="menu" hidden>
+        <button id="btn-reset" class="menu-item" type="button">
+          <svg viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v4h4"/></svg>
+          <span id="lbl-reset"></span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <section id="deckwrap" aria-label="The deck" hidden><div id="deck"></div></section>
+  <p id="deckhint" hidden></p>
+
   <div id="panel" hidden>
     <p class="big" id="panel-title"></p>
     <p id="panel-body"></p>
-    <button id="resend" hidden>Try again</button>
+    <button id="resend" hidden></button>
   </div>
 </div>
 <script>
 (function () {
   "use strict";
+
+  /* ---------- localisation (mirrors simple-tarot card-ui.ts) ---------- */
+  var I18N = {
+    en: {
+      selected: function (s, t) { return "You have selected " + s + "/" + t + " cards"; },
+      consumeStar: "Drawing cards will consume 1 star",
+      shuffle: "Shuffle", pick: "Pick for me", reset: "Start over",
+      swipe: "Swipe up on a card to select", shuffling: "Shuffling the deck…",
+      spread: { single: "Single Card", three_card: "Three Cards", celtic_cross: "Celtic Cross" },
+      sending: "🔮 Sending your cards to Claude…",
+      sent: "✨ Cards sent to Claude", sentBody: "Return to the conversation to read your interpretation.",
+      saved: "✨ Cards saved", savedBody: "Tell Claude “I've picked my cards — please interpret them” to read your interpretation.",
+      cancelled: "The card draw was cancelled", cancelledBody: "Close this view and start a new draw whenever you're ready.",
+      failTitle: "Could not send the cards", retry: "Try again",
+      incomplete: "Card data incomplete", incompleteBody: "Call the draw_tarot_spread tool again.",
+      noconn: "Could not connect to the conversation window"
+    },
+    th: {
+      selected: function (s, t) { return "คุณเลือกไพ่แล้ว " + s + "/" + t + " ใบ"; },
+      consumeStar: "การจั่วไพ่จะใช้ดวงดาว 1 ดวง",
+      shuffle: "สับไพ่", pick: "เลือกให้หน่อย", reset: "เริ่มเลือกใหม่",
+      swipe: "ปัดขึ้นบนไพ่เพื่อเลือก", shuffling: "กำลังสับไพ่…",
+      spread: { single: "ไพ่ใบเดียว", three_card: "ไพ่สามใบ", celtic_cross: "เซลติกครอส" },
+      sending: "🔮 กำลังส่งไพ่ให้ Claude…",
+      sent: "✨ ส่งไพ่ให้ Claude แล้ว", sentBody: "กลับไปที่บทสนทนาเพื่ออ่านคำทำนายของคุณ",
+      saved: "✨ บันทึกไพ่แล้ว", savedBody: "บอก Claude ว่า “ฉันเลือกไพ่แล้ว ช่วยตีความให้หน่อย” เพื่ออ่านคำทำนาย",
+      cancelled: "การจั่วไพ่ถูกยกเลิก", cancelledBody: "ปิดหน้านี้แล้วเริ่มจั่วใหม่ได้ทุกเมื่อ",
+      failTitle: "ส่งไพ่ไม่สำเร็จ", retry: "ลองอีกครั้ง",
+      incomplete: "ข้อมูลไพ่ไม่ครบ", incompleteBody: "กรุณาเรียกเครื่องมือ draw_tarot_spread อีกครั้ง",
+      noconn: "เชื่อมต่อกับหน้าต่างสนทนาไม่ได้"
+    }
+  };
+  var T = I18N.en;
+  function isThai(s) { return typeof s === "string" && /[\\u0E00-\\u0E7F]/.test(s); }
 
   /* ---------- minimal MCP Apps JSON-RPC client over postMessage ---------- */
   var PROTOCOL_VERSION = "2026-01-26";
@@ -314,10 +311,7 @@ export const TAROT_APP_HTML = /* html */ `<!DOCTYPE html>
   var hostCaps = null;
   var toolCancelled = false;
 
-  function post(msg) {
-    msg.jsonrpc = "2.0";
-    window.parent.postMessage(msg, "*");
-  }
+  function post(msg) { msg.jsonrpc = "2.0"; window.parent.postMessage(msg, "*"); }
   function request(method, params) {
     return new Promise(function (resolve, reject) {
       var id = nextId++;
@@ -325,30 +319,20 @@ export const TAROT_APP_HTML = /* html */ `<!DOCTYPE html>
       post({ id: id, method: method, params: params });
     });
   }
-  function notify(method, params) {
-    post({ method: method, params: params || {} });
-  }
+  function notify(method, params) { post({ method: method, params: params || {} }); }
 
   window.addEventListener("message", function (ev) {
     if (ev.source !== window.parent) return;
     var m = ev.data;
     if (!m || m.jsonrpc !== "2.0") return;
-
     if (m.id !== undefined && m.method === undefined) {
       var p = pending.get(m.id);
-      if (p) {
-        pending.delete(m.id);
-        if (m.error) p.reject(m.error);
-        else p.resolve(m.result);
-      }
+      if (p) { pending.delete(m.id); if (m.error) p.reject(m.error); else p.resolve(m.result); }
       return;
     }
     if (m.method !== undefined && m.id !== undefined) {
-      if (m.method === "ping" || m.method === "ui/resource-teardown") {
-        post({ id: m.id, result: {} });
-      } else {
-        post({ id: m.id, error: { code: -32601, message: "Method not found: " + m.method } });
-      }
+      if (m.method === "ping" || m.method === "ui/resource-teardown") post({ id: m.id, result: {} });
+      else post({ id: m.id, error: { code: -32601, message: "Method not found: " + m.method } });
       return;
     }
     if (m.method === "ui/notifications/tool-input") onToolInput(m.params || {});
@@ -362,9 +346,10 @@ export const TAROT_APP_HTML = /* html */ `<!DOCTYPE html>
   }
 
   /* ---------- state ---------- */
-  var spread = null;   // { spread_type, spread_name, positions: [...], deck: [...] }
-  var picks = [];      // { position, card }
-  var taken = new Set();
+  var spread = null;       // { spread_type, spread_name, positions, deck, locale, stars }
+  var picks = [];          // { position, card }
+  var taken = new Set();   // taken deck indices
+  var deckOrder = [];      // deck indices in current display order
   var sending = false;
 
   var el = function (id) { return document.getElementById(id); };
@@ -372,6 +357,7 @@ export const TAROT_APP_HTML = /* html */ `<!DOCTYPE html>
   function onToolInput(params) {
     var args = params.arguments || {};
     if (typeof args.question === "string" && args.question.trim()) {
+      if (!spread && isThai(args.question)) { T = I18N.th; document.documentElement.lang = "th"; }
       el("question").textContent = "“" + args.question.trim() + "”";
       sendSize();
     }
@@ -379,124 +365,111 @@ export const TAROT_APP_HTML = /* html */ `<!DOCTYPE html>
 
   function onToolCancelled() {
     toolCancelled = true;
-    showPanel("The card draw was cancelled", "Close this view and start a new draw whenever you're ready.", false);
+    showPanel(T.cancelled, T.cancelledBody, false);
   }
 
   function onToolResult(result) {
-    if (spread) return; // already initialised
+    if (spread) return;
     var sc = result && result.structuredContent;
     if (!sc || !Array.isArray(sc.deck) || !Array.isArray(sc.positions)) {
-      showPanel("Card data incomplete", "Call the draw_tarot_spread tool again.", false);
+      showPanel(T.incomplete, T.incompleteBody, false);
       return;
     }
     spread = sc;
-    if (typeof sc.question === "string" && sc.question) {
-      el("question").textContent = "“" + sc.question + "”";
+
+    // language: server locale wins, else detect Thai in the question
+    if (sc.locale === "th" || (sc.locale !== "en" && isThai(sc.question))) T = I18N.th;
+    else T = I18N.en;
+    document.documentElement.lang = (T === I18N.th) ? "th" : "en";
+
+    if (typeof sc.question === "string" && sc.question) el("question").textContent = "“" + sc.question + "”";
+
+    // static labels
+    el("lbl-shuffle").textContent = T.shuffle;
+    el("lbl-pick").textContent = T.pick;
+    el("lbl-reset").textContent = T.reset;
+    el("deckhint").textContent = T.swipe;
+    el("starcost-text").textContent = T.consumeStar;
+
+    // star balance badge
+    if (typeof sc.stars === "number" && sc.stars >= 0) {
+      el("starcount").textContent = String(sc.stars);
+      el("starbadge").hidden = false;
     }
-    buildSlots();
+
+    deckOrder = sc.deck.map(function (_, i) { return i; });
     buildDeck();
-    el("subtitle").classList.remove("shimmer");
-    el("subtitle").textContent = sc.spread_name + " — slide up to pick " +
-      sc.positions.length + (sc.positions.length > 1 ? " cards" : " card");
-    document.getElementById("stage").classList.remove("waiting");
-    document.body.classList.add("s-" + sc.positions.length);
+
+    el("counter").classList.remove("shimmer");
     updateCounter();
-    // centre the deck
-    var wrap = el("deckwrap");
-    var deckW = el("deck").scrollWidth;
-    wrap.scrollLeft = Math.max(0, (deckW - wrap.clientWidth) / 2);
+    el("starcost").hidden = false;
+    el("controls").hidden = false;
+    el("deckwrap").hidden = false;
+    el("deckhint").hidden = false;
+    document.getElementById("stage").classList.remove("waiting");
+    centerDeck();
     sendSize();
   }
 
-  function buildSlots() {
-    var slots = el("slots");
-    spread.positions.forEach(function (pos) {
-      var slot = document.createElement("div");
-      slot.className = "slot";
-      slot.id = "slot-" + pos.index;
-
-      var well = document.createElement("div");
-      well.className = "well";
-      var flip = document.createElement("div");
-      flip.className = "flip";
-      var back = document.createElement("div");
-      back.className = "face back";
-      back.textContent = "✧";
-      var front = document.createElement("div");
-      front.className = "face front";
-      flip.appendChild(back);
-      flip.appendChild(front);
-      well.appendChild(flip);
-      slot.appendChild(well);
-
-      var label = document.createElement("div");
-      label.className = "plabel";
-      label.textContent = pos.index + ". " + pos.label;
-      slot.appendChild(label);
-
-      slots.appendChild(slot);
-    });
-  }
-
-  /* deck geometry (linear, overlapping spread) */
+  /* ---------- deck build & geometry ---------- */
   var CARD_W = 76, CARD_H = 114, STEP = 46, PAD = 14;
+  var hintEl = null;
 
-  function buildDeck() {
-    var deck = el("deck");
-    var n = spread.deck.length;
-    deck.style.width = (PAD * 2 + STEP * (n - 1) + CARD_W) + "px";
-    for (var i = 0; i < n; i++) {
-      var c = document.createElement("div");
-      c.className = "dcard";
-      c.dataset.i = String(i);
-      c.style.left = (PAD + i * STEP) + "px";
-      c.style.zIndex = String(i + 1);
-      c.setAttribute("role", "button");
-      c.setAttribute("aria-label", "Face-down card " + (i + 1) + " — slide up to choose");
-      // frame → white → cosmic interior with sigil
-      var frame = document.createElement("div");
-      frame.className = "cframe";
-      var white = document.createElement("div");
-      white.className = "cwhite";
-      var inner = document.createElement("div");
-      inner.className = "cinner";
-      var sigil = document.createElement("div");
-      sigil.className = "csigil";
-      sigil.textContent = "✷";
-      inner.appendChild(sigil);
-      white.appendChild(inner);
-      frame.appendChild(white);
-      c.appendChild(frame);
-      c.addEventListener("pointerdown", onPointerDown);
-      c.addEventListener("pointermove", onPointerMove);
-      c.addEventListener("pointerup", onPointerUp);
-      c.addEventListener("pointercancel", onPointerCancel);
-      deck.appendChild(c);
-    }
-    // reusable swipe-up teaching overlay
+  function makeHint() {
     var hint = document.createElement("div");
     hint.id = "swipehint";
     hint.innerHTML =
-      '<div class="ring"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" ' +
-      'stroke-linecap="round" stroke-linejoin="round"><path d="M7 11l5-5m0 0l5 5m-5-5v12"/></svg></div>' +
-      '<div class="pill">Swipe up to select</div>';
-    deck.appendChild(hint);
-
-    // desktop: translate vertical wheel into horizontal deck scroll
-    el("deckwrap").addEventListener("wheel", function (ev) {
-      var wrap = el("deckwrap");
-      var d = Math.abs(ev.deltaY) > Math.abs(ev.deltaX) ? ev.deltaY : ev.deltaX;
-      if (d) { wrap.scrollLeft += d; ev.preventDefault(); }
-    }, { passive: false });
+      '<div class="ring"><svg viewBox="0 0 24 24"><path d="M7 11l5-5m0 0l5 5m-5-5v12"/></svg></div>' +
+      '<div class="pill"></div>';
+    return hint;
   }
 
+  function createCardEl(idx, pos) {
+    var c = document.createElement("div");
+    c.className = "dcard";
+    c.dataset.i = String(idx);
+    c.style.left = (PAD + pos * STEP) + "px";
+    c.style.zIndex = String(pos + 1);
+    c.setAttribute("role", "button");
+    c.setAttribute("aria-label", "Face-down card — slide up to choose");
+    var frame = document.createElement("div"); frame.className = "cframe";
+    var white = document.createElement("div"); white.className = "cwhite";
+    var inner = document.createElement("div"); inner.className = "cinner";
+    var sigil = document.createElement("div"); sigil.className = "csigil"; sigil.textContent = "✷";
+    inner.appendChild(sigil); white.appendChild(inner); frame.appendChild(white); c.appendChild(frame);
+    c.addEventListener("pointerdown", onPointerDown);
+    c.addEventListener("pointermove", onPointerMove);
+    c.addEventListener("pointerup", onPointerUp);
+    c.addEventListener("pointercancel", onPointerCancel);
+    return c;
+  }
+
+  function buildDeck() {
+    var deck = el("deck");
+    deck.innerHTML = "";
+    var disp = deckOrder.filter(function (i) { return !taken.has(i); });
+    var n = disp.length;
+    deck.style.width = (PAD * 2 + STEP * Math.max(0, n - 1) + CARD_W) + "px";
+    disp.forEach(function (idx, pos) { deck.appendChild(createCardEl(idx, pos)); });
+    if (!hintEl) hintEl = makeHint();
+    var pill = hintEl.querySelector(".pill");
+    if (pill) pill.textContent = T.swipe;
+    deck.appendChild(hintEl);
+  }
+
+  function centerDeck() {
+    var wrap = el("deckwrap");
+    var deckW = el("deck").scrollWidth;
+    wrap.scrollLeft = Math.max(0, (deckW - wrap.clientWidth) / 2);
+  }
+
+  function cardElByIndex(i) { return el("deck").querySelector('[data-i="' + i + '"]'); }
+
   /* ---------- slide-up-to-pick gesture ---------- */
-  var drag = null;       // active pointer gesture
-  var hintTimer = null;
+  var drag = null, hintTimer = null;
 
   function pickable() {
-    return spread && !toolCancelled && !sending &&
-      picks.length < spread.positions.length;
+    return spread && !toolCancelled && !sending && picks.length < spread.positions.length;
   }
 
   function readTranslateY(elm) {
@@ -511,18 +484,14 @@ export const TAROT_APP_HTML = /* html */ `<!DOCTYPE html>
 
   function onPointerDown(ev) {
     if (!ev.isPrimary) return;
+    hideMenu();
     var cardEl = ev.currentTarget;
     if (cardEl.classList.contains("taken")) return;
     drag = {
-      el: cardEl,
-      i: Number(cardEl.dataset.i),
-      startX: ev.clientX,
-      startY: ev.clientY,
+      el: cardEl, i: Number(cardEl.dataset.i),
+      startX: ev.clientX, startY: ev.clientY,
       startScroll: el("deckwrap").scrollLeft,
-      pointerId: ev.pointerId,
-      type: ev.pointerType,
-      mode: null,      // null → undecided, "lift", "scroll", "native"
-      moved: false,
+      pointerId: ev.pointerId, type: ev.pointerType, mode: null, moved: false
     };
   }
 
@@ -530,37 +499,27 @@ export const TAROT_APP_HTML = /* html */ `<!DOCTYPE html>
     if (!drag || ev.pointerId !== drag.pointerId) return;
     var dx = ev.clientX - drag.startX;
     var dy = ev.clientY - drag.startY;
-
     if (drag.mode === null) {
       if (Math.abs(dx) > 4 || Math.abs(dy) > 4) drag.moved = true;
       if (Math.abs(dy) > Math.abs(dx) + 8) {
-        // vertical → lift this card (we take over the pointer)
         drag.mode = "lift";
         try { drag.el.setPointerCapture(drag.pointerId); } catch (e) {}
         drag.el.classList.add("dragging");
         hideSwipeHint();
       } else if (Math.abs(dx) > Math.abs(dy) + 8) {
-        // horizontal → scroll the deck. Touch scrolls natively (pan-x);
-        // mouse/pen we drive by hand.
         if (drag.type === "mouse" || drag.type === "pen") {
           drag.mode = "scroll";
           try { drag.el.setPointerCapture(drag.pointerId); } catch (e) {}
-        } else {
-          drag.mode = "native";
-        }
-      } else {
-        return;
-      }
+        } else { drag.mode = "native"; }
+      } else { return; }
     }
-
     if (drag.mode === "lift") {
       ev.preventDefault();
       var ty = Math.max(-CARD_H, Math.min(0, dy));
       var rot = Math.max(-8, ty / 20);
       drag.el.style.transform = "translateY(" + ty + "px) rotate(" + rot + "deg)";
       drag.el.style.zIndex = "500";
-      var up = -ty;
-      if (up >= 0.5 * CARD_H) drag.el.classList.add("aura");
+      if (-ty >= 0.5 * CARD_H) drag.el.classList.add("aura");
       else drag.el.classList.remove("aura");
     } else if (drag.mode === "scroll") {
       ev.preventDefault();
@@ -570,20 +529,17 @@ export const TAROT_APP_HTML = /* html */ `<!DOCTYPE html>
 
   function onPointerUp(ev) {
     if (!drag || ev.pointerId !== drag.pointerId) return;
-    var cardEl = drag.el;
-    var mode = drag.mode;
-
+    var cardEl = drag.el, mode = drag.mode;
     if (mode === "lift") {
       var up = -readTranslateY(cardEl);
       cardEl.classList.remove("dragging", "aura");
       if (up >= 0.5 * CARD_H && pickable() && !taken.has(drag.i)) {
         selectCard(drag.i, cardEl);
       } else {
-        cardEl.style.zIndex = String(drag.i + 1);
+        cardEl.style.zIndex = String((deckOrder.indexOf(drag.i) + 1) || 1);
         cardEl.style.transform = "translateY(0) rotate(0deg)";
       }
     } else if (!mode && !drag.moved) {
-      // a tap without a drag → teach the gesture
       showSwipeHint(cardEl);
     }
     drag = null;
@@ -593,90 +549,109 @@ export const TAROT_APP_HTML = /* html */ `<!DOCTYPE html>
     if (!drag || ev.pointerId !== drag.pointerId) return;
     if (drag.mode === "lift") {
       drag.el.classList.remove("dragging", "aura");
-      drag.el.style.zIndex = String(drag.i + 1);
       drag.el.style.transform = "translateY(0) rotate(0deg)";
     }
     drag = null;
   }
 
   function selectCard(i, cardEl) {
+    if (taken.has(i)) return;
     taken.add(i);
     var card = spread.deck[i];
     var pos = spread.positions[picks.length];
     picks.push({ position: pos, card: card });
-
-    // the chosen card flies up and out of the deck
     cardEl.style.transition = "transform 0.45s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.45s ease";
     cardEl.style.transform = "translateY(-135%) rotate(-6deg)";
     cardEl.classList.add("taken");
-
-    fillSlot(pos, card);
     updateCounter();
-
-    if (picks.length === spread.positions.length) {
-      setTimeout(finishPicking, 950);
-    }
-  }
-
-  function showSwipeHint(cardEl) {
-    var hint = el("swipehint");
-    if (!hint) return;
-    var left = parseFloat(cardEl.style.left) + CARD_W / 2;
-    hint.style.left = left + "px";
-    hint.style.bottom = (6 + CARD_H + 8) + "px";
-    hint.classList.add("show");
-    if (hintTimer) clearTimeout(hintTimer);
-    hintTimer = setTimeout(hideSwipeHint, 1900);
-  }
-
-  function hideSwipeHint() {
-    var hint = el("swipehint");
-    if (hint) hint.classList.remove("show");
-    if (hintTimer) { clearTimeout(hintTimer); hintTimer = null; }
-  }
-
-  function fillSlot(pos, card) {
-    var slot = el("slot-" + pos.index);
-    var front = slot.querySelector(".face.front");
-
-    var face = document.createElement("div");
-    face.className = "cardface" + (card.reversed ? " rev" : "");
-    var glyph = document.createElement("div");
-    glyph.className = "glyph";
-    glyph.textContent = card.glyph;
-    var numeral = document.createElement("div");
-    numeral.className = "numeral";
-    numeral.textContent = card.numeral;
-    var name = document.createElement("div");
-    name.className = "name";
-    name.textContent = card.name;
-    face.appendChild(glyph);
-    face.appendChild(numeral);
-    face.appendChild(name);
-    front.appendChild(face);
-
-    if (card.reversed) {
-      var badge = document.createElement("div");
-      badge.className = "revbadge";
-      badge.textContent = "↺ Reversed";
-      front.appendChild(badge);
-    }
-    slot.classList.add("filled");
+    if (picks.length === spread.positions.length) setTimeout(finishPicking, 900);
   }
 
   function updateCounter() {
     if (!spread) return;
-    var total = spread.positions.length;
-    if (picks.length < total) {
-      el("counter").innerHTML = "";
-      var b = document.createElement("b");
-      b.textContent = picks.length + " / " + total;
-      el("counter").appendChild(document.createTextNode("Picked "));
-      el("counter").appendChild(b);
-      el("counter").appendChild(document.createTextNode(" cards"));
-    } else {
-      el("counter").textContent = "All " + total + " cards picked ✨";
+    el("counter").textContent = T.selected(picks.length, spread.positions.length);
+  }
+
+  /* ---------- controls: shuffle / pick-for-me / reset ---------- */
+  function shuffleDeckUI() {
+    if (!spread || sending || toolCancelled) return;
+    hideMenu();
+    var untaken = deckOrder.filter(function (i) { return !taken.has(i); });
+    for (var k = untaken.length - 1; k > 0; k--) {
+      var j = Math.floor(Math.random() * (k + 1));
+      var t = untaken[k]; untaken[k] = untaken[j]; untaken[j] = t;
     }
+    deckOrder = untaken;
+    buildDeck();
+    centerDeck();
+  }
+
+  function pickForMe() {
+    if (!pickable()) return;
+    hideMenu();
+    var remaining = spread.positions.length - picks.length;
+    var avail = deckOrder.filter(function (i) { return !taken.has(i); });
+    for (var k = avail.length - 1; k > 0; k--) {
+      var j = Math.floor(Math.random() * (k + 1));
+      var t = avail[k]; avail[k] = avail[j]; avail[j] = t;
+    }
+    avail.slice(0, remaining).forEach(function (idx, n) {
+      setTimeout(function () {
+        if (!pickable() || taken.has(idx)) return;
+        var c = cardElByIndex(idx);
+        if (!c) return;
+        c.style.zIndex = "500";
+        c.classList.add("aura");
+        setTimeout(function () { var cc = cardElByIndex(idx); if (cc) selectCard(idx, cc); }, 220);
+      }, n * 430);
+    });
+  }
+
+  function resetPicks() {
+    if (sending || toolCancelled) return;
+    hideMenu();
+    taken.clear();
+    picks = [];
+    deckOrder = spread.deck.map(function (_, i) { return i; });
+    buildDeck();
+    centerDeck();
+    updateCounter();
+    sendSize();
+  }
+
+  function toggleMenu() { var m = el("menu"); m.hidden = !m.hidden; }
+  function hideMenu() { var m = el("menu"); if (m) m.hidden = true; }
+
+  el("btn-shuffle").addEventListener("click", shuffleDeckUI);
+  el("btn-pick").addEventListener("click", pickForMe);
+  el("btn-menu").addEventListener("click", function (e) { e.stopPropagation(); toggleMenu(); });
+  el("btn-reset").addEventListener("click", resetPicks);
+  document.addEventListener("click", function (e) {
+    if (!el("menuwrap").contains(e.target)) hideMenu();
+  });
+
+  /* ---------- swipe-up teaching overlay ---------- */
+  function showSwipeHint(cardEl) {
+    if (!hintEl) return;
+    var left = parseFloat(cardEl.style.left) + CARD_W / 2;
+    hintEl.style.left = left + "px";
+    hintEl.style.bottom = (6 + CARD_H + 8) + "px";
+    hintEl.classList.add("show");
+    if (hintTimer) clearTimeout(hintTimer);
+    hintTimer = setTimeout(hideSwipeHint, 1900);
+  }
+  function hideSwipeHint() {
+    if (hintEl) hintEl.classList.remove("show");
+    if (hintTimer) { clearTimeout(hintTimer); hintTimer = null; }
+  }
+
+  /* ---------- finish & send ---------- */
+  function finishPicking() {
+    hideSwipeHint();
+    el("controls").hidden = true;
+    el("deckwrap").hidden = true;
+    el("deckhint").hidden = true;
+    sendResults();
   }
 
   function pickSummaryLines() {
@@ -686,17 +661,11 @@ export const TAROT_APP_HTML = /* html */ `<!DOCTYPE html>
     });
   }
 
-  function finishPicking() {
-    hideSwipeHint();
-    el("deckwrap").style.display = "none";
-    el("deckhint").style.display = "none";
-    sendResults();
-  }
-
   function showPanel(title, body, withRetry) {
     el("panel").hidden = false;
     el("panel-title").textContent = title;
     el("panel-body").textContent = body;
+    el("resend").textContent = T.retry;
     el("resend").hidden = !withRetry;
     sendSize();
   }
@@ -704,7 +673,7 @@ export const TAROT_APP_HTML = /* html */ `<!DOCTYPE html>
   function sendResults() {
     if (sending) return;
     sending = true;
-    showPanel("🔮 Sending your cards to Claude…", "", false);
+    showPanel(T.sending, "", false);
 
     var lines = pickSummaryLines();
     var header = "The user has finished picking tarot cards — " + spread.spread_name +
@@ -721,31 +690,24 @@ export const TAROT_APP_HTML = /* html */ `<!DOCTYPE html>
           position_key: p.position.key,
           position_label: p.position.label,
           name: p.card.name,
-          orientation: p.card.reversed ? "reversed" : "upright",
+          orientation: p.card.reversed ? "reversed" : "upright"
         };
-      }),
+      })
     };
 
     var attempt;
     if (hostCaps && hostCaps.message) {
       attempt = request("ui/message", { role: "user", content: [{ type: "text", text: text }] })
-        .then(function () {
-          showPanel("✨ Cards sent to Claude", "Return to the conversation to read your interpretation.", false);
-        });
+        .then(function () { showPanel(T.sent, T.sentBody, false); });
     } else if (hostCaps && hostCaps.updateModelContext) {
-      attempt = request("ui/update-model-context", {
-        content: [{ type: "text", text: text }],
-        structuredContent: structured,
-      }).then(function () {
-        showPanel("✨ Cards saved", "Tell Claude “I've picked my cards — please interpret them” to read your interpretation.", false);
-      });
+      attempt = request("ui/update-model-context", { content: [{ type: "text", text: text }], structuredContent: structured })
+        .then(function () { showPanel(T.saved, T.savedBody, false); });
     } else {
       attempt = Promise.reject(new Error("host does not support ui/message or ui/update-model-context"));
     }
-
     attempt.catch(function () {
       sending = false;
-      showPanel("Could not send the cards", "Your picks:\\n" + lines.join("\\n"), true);
+      showPanel(T.failTitle, lines.join("\\n"), true);
     });
   }
 
@@ -754,14 +716,14 @@ export const TAROT_APP_HTML = /* html */ `<!DOCTYPE html>
   /* ---------- handshake ---------- */
   request("ui/initialize", {
     protocolVersion: PROTOCOL_VERSION,
-    appInfo: { name: "askingfate-tarot-picker", version: "1.0.0" },
-    appCapabilities: { availableDisplayModes: ["inline"] },
+    appInfo: { name: "askingfate-tarot-picker", version: "2.0.0" },
+    appCapabilities: { availableDisplayModes: ["inline"] }
   }).then(function (result) {
     hostCaps = (result && result.hostCapabilities) || {};
     notify("ui/notifications/initialized");
     sendSize();
   }).catch(function () {
-    showPanel("Could not connect to the conversation window", "Call the draw_tarot_spread tool again.", false);
+    showPanel(T.noconn, T.incompleteBody, false);
   });
 
   window.addEventListener("resize", sendSize);

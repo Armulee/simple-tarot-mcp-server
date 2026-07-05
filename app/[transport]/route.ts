@@ -25,10 +25,24 @@ import { buildZodiacInfo } from "@/lib/astro/zodiac";
 import { buildAuspiciousDates, parseMonth, Purpose } from "@/lib/astro/auspicious";
 import { TAROT_APP_HTML, TAROT_APP_URI } from "@/lib/mcp/tarot-app-html";
 import { verifyMcpToken } from "@/lib/oauth/mcp-auth";
+import { getStarBalance } from "@/lib/stars/balance";
+
+/** Detect the picker UI language from the question (Thai script → th, else en). */
+function detectLocale(question?: string | null): "th" | "en" {
+  return question && /[\u0E00-\u0E7F]/.test(question) ? "th" : "en";
+}
+
+/** The user id injected by withMcpAuth, read defensively from the tool `extra`. */
+function userIdFromExtra(extra: unknown): string | undefined {
+  const id = (extra as { authInfo?: { extra?: { userId?: unknown } } })?.authInfo
+    ?.extra?.userId;
+  return typeof id === "string" && id ? id : undefined;
+}
 
 export const maxDuration = 60;
 
-/** All tools are read-only lookups/draws with no side effects and no external calls. */
+/** All tools are read-only lookups/draws with no side effects (draw_tarot_spread
+ * additionally does a best-effort read of the user's star balance from Supabase). */
 const READ_ONLY = { readOnlyHint: true, openWorldHint: false } as const;
 
 type ToolResult = {
@@ -101,10 +115,15 @@ const handler = createMcpHandler(
         annotations: { ...READ_ONLY, idempotentHint: false },
         _meta: { ui: { resourceUri: TAROT_APP_URI } },
       },
-      async ({ spread_type, question }) => {
+      async ({ spread_type, question }, extra: unknown) => {
         const spread = SPREADS[spread_type as SpreadType];
         const deck = shuffleDeck();
         const trimmedQuestion = question?.trim() || null;
+        const locale = detectLocale(trimmedQuestion);
+
+        // Best-effort star balance for the top-right badge; never blocks the draw.
+        const userId = userIdFromExtra(extra);
+        const stars = userId ? await getStarBalance(userId) : null;
 
         const fallbackDraw = spread.positions.map((pos, i) => ({
           position_index: pos.index,
@@ -129,6 +148,9 @@ const handler = createMcpHandler(
             spread_type: spread.type,
             spread_name: spread.name,
             question: trimmedQuestion,
+            locale,
+            stars,
+            star_cost: 1,
             positions: spread.positions,
             deck,
             fallback_draw: fallbackDraw,
@@ -146,7 +168,7 @@ const handler = createMcpHandler(
       TAROT_APP_URI,
       {
         description:
-          "Interactive linear-deck tarot card picker for draw_tarot_spread — slide a card up to select (mobile-first, self-contained HTML).",
+          "Interactive linear-deck tarot card picker for draw_tarot_spread — slide a card up to select, with shuffle / pick-for-me controls and the user's star balance (mobile-first, self-contained HTML, EN/TH).",
         _meta: {
           ui: {
             // Fully self-contained: no network access needed inside the sandbox.
