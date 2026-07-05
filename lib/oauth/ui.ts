@@ -1,9 +1,26 @@
 /**
  * Shared shell for the OAuth browser pages (consent, sign-in return leg,
- * errors), themed to match askingfate.com: near-black indigo backdrop with
- * violet glows, a glass card, and the AskingFate logo (served from
+ * errors), themed to match askingfate.com: the same cosmic background as the
+ * main site (near-black indigo base, the three corner nebula gradients from
+ * its globals.css, and ~90 randomly placed twinkling stars mirroring its
+ * CosmicStars component), a glass card, and the AskingFate logo (served from
  * /assets/logo.png — the same asset as the main site).
  */
+
+/** Random twinkling stars, generated per render like the main site's CosmicStars. */
+function cosmicStars(count: number): string {
+  let out = "";
+  for (let i = 0; i < count; i++) {
+    const size = Math.random() < 0.5 ? 1 : 2;
+    const top = (2 + Math.random() * 95).toFixed(2);
+    const left = (2 + Math.random() * 95).toFixed(2);
+    const anim = 1 + Math.floor(Math.random() * 8);
+    const duration = (3.2 + Math.random() * 2).toFixed(1);
+    out += `<i style="width:${size}px;height:${size}px;top:${top}%;left:${left}%;animation:twinkle-${anim} ${duration}s ease-in-out infinite"></i>`;
+  }
+  return out;
+}
+
 export function pageShell(body: string, title = "AskingFate"): string {
   return `<!doctype html>
 <html lang="en">
@@ -16,23 +33,31 @@ export function pageShell(body: string, title = "AskingFate"): string {
   * { box-sizing: border-box; }
   body {
     margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center;
-    background: #050409; color: #f2eefb; overflow-x: hidden;
+    color: #f2eefb; overflow-x: hidden;
     font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    /* Cosmic backdrop — same base + corner nebula gradients as askingfate.com */
+    background-color: #050409;
+    background-image:
+      radial-gradient(60% 50% at 100% 0%, rgba(190, 80, 160, 0.16) 0%, rgba(190, 80, 160, 0) 70%),
+      radial-gradient(60% 55% at 100% 100%, rgba(140, 110, 220, 0.13) 0%, rgba(140, 110, 220, 0) 70%),
+      radial-gradient(70% 45% at 0% 100%, rgba(70, 90, 200, 0.10) 0%, rgba(70, 90, 200, 0) 70%);
+    background-attachment: fixed;
+    background-repeat: no-repeat;
   }
-  body::before, body::after {
-    content: ""; position: fixed; pointer-events: none; border-radius: 50%;
+  .stars { position: fixed; inset: 0; pointer-events: none; z-index: 0; }
+  .stars i { position: absolute; display: block; background: #fff; border-radius: 50%; }
+  @keyframes twinkle-1 { 0%, 100% { opacity: 0.1; } 25% { opacity: 0.4; } 50% { opacity: 0.2; } 75% { opacity: 0.5; } }
+  @keyframes twinkle-2 { 0%, 100% { opacity: 0.05; } 30% { opacity: 0.3; } 60% { opacity: 0.15; } 90% { opacity: 0.4; } }
+  @keyframes twinkle-3 { 0%, 100% { opacity: 0.2; } 20% { opacity: 0.3; } 40% { opacity: 0.5; } 80% { opacity: 0.1; } }
+  @keyframes twinkle-4 { 0%, 100% { opacity: 0.3; } 15% { opacity: 0.5; } 35% { opacity: 0.8; } 55% { opacity: 0.1; } 75% { opacity: 0.9; } }
+  @keyframes twinkle-5 { 0%, 100% { opacity: 0.2; } 10% { opacity: 0.7; } 45% { opacity: 0.3; } 70% { opacity: 1; } 85% { opacity: 0.4; } }
+  @keyframes twinkle-6 { 0%, 100% { opacity: 0.5; } 25% { opacity: 0.2; } 50% { opacity: 0.9; } 75% { opacity: 0.3; } }
+  @keyframes twinkle-7 { 0%, 100% { opacity: 0.1; } 40% { opacity: 0.8; } 60% { opacity: 0.4; } 80% { opacity: 0.6; } }
+  @keyframes twinkle-8 { 0%, 100% { opacity: 0.3; } 20% { opacity: 0.9; } 50% { opacity: 0.1; } 70% { opacity: 0.7; } }
+  @media (prefers-reduced-motion: reduce) {
+    .stars i { animation: none !important; opacity: 0.35; }
   }
-  body::before {
-    top: -20%; left: -15%; width: 55vw; height: 55vw;
-    background: radial-gradient(circle, rgba(84, 58, 196, 0.30), transparent 65%);
-    filter: blur(40px);
-  }
-  body::after {
-    bottom: -25%; right: -15%; width: 60vw; height: 60vw;
-    background: radial-gradient(circle, rgba(122, 85, 214, 0.22), transparent 65%);
-    filter: blur(48px);
-  }
-  .wrap { position: relative; width: 100%; max-width: 460px; margin: 24px; }
+  .wrap { position: relative; z-index: 1; width: 100%; max-width: 460px; margin: 24px; }
   .halo {
     position: absolute; inset: -2px; border-radius: 34px; opacity: 0.35; filter: blur(14px);
     background: linear-gradient(135deg, rgba(124, 92, 214, 0.55), rgba(84, 58, 196, 0.15) 40%, rgba(158, 120, 255, 0.45));
@@ -100,6 +125,6 @@ export function pageShell(body: string, title = "AskingFate"): string {
   @keyframes spin { to { transform: rotate(360deg); } }
 </style>
 </head>
-<body><div class="wrap"><div class="halo"></div><main>${body}</main></div></body>
+<body><div class="stars">${cosmicStars(90)}</div><div class="wrap"><div class="halo"></div><main>${body}</main></div></body>
 </html>`;
 }

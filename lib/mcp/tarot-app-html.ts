@@ -61,6 +61,30 @@ export const TAROT_APP_HTML = /* html */ `<!DOCTYPE html>
     border-radius: 12px;
     pointer-events: none;
   }
+  /* Twinkling starfield — same repeating patterns as the main site's cosmic background */
+  .cstars {
+    position: absolute; inset: 0; pointer-events: none; z-index: 0;
+    background-repeat: repeat; background-size: 200px 100px;
+  }
+  .cstars.c1 {
+    background-image: radial-gradient(1px 1px at 25px 15px, white, transparent),
+      radial-gradient(2px 2px at 55px 85px, white, transparent),
+      radial-gradient(1px 1px at 95px 25px, white, transparent),
+      radial-gradient(2px 2px at 135px 75px, white, transparent),
+      radial-gradient(1px 1px at 175px 45px, white, transparent);
+    animation: twinkle-a 4.3s ease-in-out infinite;
+  }
+  .cstars.c2 {
+    background-image: radial-gradient(2px 2px at 45px 65px, white, transparent),
+      radial-gradient(1px 1px at 85px 35px, white, transparent),
+      radial-gradient(2px 2px at 125px 85px, white, transparent),
+      radial-gradient(1px 1px at 165px 15px, white, transparent),
+      radial-gradient(1px 1px at 195px 55px, white, transparent);
+    animation: twinkle-b 3.5s ease-in-out infinite;
+  }
+  @keyframes twinkle-a { 0%, 100% { opacity: 0.2; } 10% { opacity: 0.7; } 45% { opacity: 0.3; } 70% { opacity: 1; } 85% { opacity: 0.4; } }
+  @keyframes twinkle-b { 0%, 100% { opacity: 0.5; } 25% { opacity: 0.2; } 50% { opacity: 0.9; } 75% { opacity: 0.3; } }
+  #stage > :not(.cstars) { position: relative; z-index: 1; }
   header { text-align: center; position: relative; }
   header h1 {
     font-size: 15px; letter-spacing: 0.35em; text-transform: uppercase;
@@ -196,12 +220,14 @@ export const TAROT_APP_HTML = /* html */ `<!DOCTYPE html>
 
   @media (prefers-reduced-motion: reduce) {
     .slot .flip, .card { transition: none; }
-    .slot.filled .well, .shimmer { animation: none; }
+    .slot.filled .well, .shimmer, .cstars { animation: none; }
   }
 </style>
 </head>
 <body>
 <div id="stage" class="waiting">
+  <div class="cstars c1"></div>
+  <div class="cstars c2"></div>
   <header>
     <h1>✦ AskingFate ✦</h1>
     <div class="rule"></div>
