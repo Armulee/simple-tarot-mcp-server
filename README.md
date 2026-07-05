@@ -58,10 +58,14 @@ askingfate.com account system.
    `OAUTH_ALLOWED_REDIRECT_URIS`). The endpoints are also aliased at the
    MCP-spec default root paths (`/register`, `/authorize`, `/token`) for
    clients that skip metadata discovery.
-3. The user lands on `GET /oauth/authorize`. No askingfate session → redirect
-   to the main site's login page (`ASKINGFATE_LOGIN_URL`) with a callback back
-   to the authorize URL. With a session → a short consent page (app name,
-   requested scopes, อนุญาต/ปฏิเสธ).
+3. The user lands on `GET /oauth/authorize`. No session yet → the endpoint
+   renders its own sign-in page backed by the **same Supabase project as
+   askingfate.com** (email/password and Google — same accounts). A successful
+   sign-in POSTs the Supabase access token to `/oauth/session`, which verifies
+   it server-side and sets a signed HttpOnly session cookie for this
+   deployment; the page then reloads into a short consent page (app name,
+   requested scopes, อนุญาต/ปฏิเสธ). The Google leg round-trips through
+   `/oauth/callback`.
 4. Consent issues a single-use authorization code (60 s TTL, stored hashed,
    bound to user + client + PKCE `code_challenge`) and redirects back to Claude.
 5. `POST /oauth/token` exchanges the code — **PKCE S256 is verified on every
@@ -81,19 +85,23 @@ pair) in production.
 
 ### Wiring up the askingfate.com account system
 
-`lib/oauth/session.ts` is the single integration point. The default
-implementation forwards the request's cookies to
-`ASKINGFATE_SESSION_ENDPOINT` (NextAuth-style `/api/auth/session`) and sends
-logged-out users to `ASKINGFATE_LOGIN_URL`. Two things must hold on the main
-site:
+The main site authenticates with Supabase **in the browser** (the session
+lives in localStorage on askingfate.com), so no cookie ever reaches the
+`mcp.` subdomain. The authorize endpoint therefore runs its own sign-in
+against the same Supabase project. Two deployment requirements:
 
-1. The session cookie is issued with `Domain=.askingfate.com` so the
-   `mcp.` subdomain receives it.
-2. The login page honours a `callbackUrl` query param (name configurable via
-   `ASKINGFATE_LOGIN_CALLBACK_PARAM`) and redirects back after login.
+1. Set `SUPABASE_URL` + `SUPABASE_ANON_KEY` (or their `NEXT_PUBLIC_`-prefixed
+   twins) to the exact values the main site uses.
+2. Add `https://mcp.askingfate.com/oauth/callback` to the Supabase project's
+   allowed redirect URLs (Authentication → URL Configuration → Redirect URLs),
+   otherwise "เข้าสู่ระบบด้วย Google" bounces to the main site instead of
+   returning here.
 
-If the main site uses a different auth system (Supabase, custom JWT, …),
-replace `getAskingfateUser()` in that one file.
+`lib/oauth/session.ts`/`lib/oauth/supabase.ts` remain the single integration
+point. If the Supabase env is missing, logged-out users are redirected to
+`ASKINGFATE_LOGIN_URL` (default `https://askingfate.com/signin`) as a
+fallback — but without a shared session cookie that flow cannot complete, so
+treat it as a misconfiguration signal, not a feature.
 
 ### Testing locally / MCP Inspector
 

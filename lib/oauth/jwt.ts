@@ -1,18 +1,21 @@
 /**
  * JWT signing/verification (HS256 via `jose`).
  *
- * Two token types, separated by audience/type claims so one can never be
- * replayed as the other:
+ * Three token types, separated by audience/type claims so one can never be
+ * replayed as another:
  *   - access tokens (typ "at+jwt", aud = the MCP resource URL), TTL 1h
  *   - consent transaction tokens (aud "askingfate:oauth-consent"), TTL 10m,
  *     used as the signed CSRF-protected state of the /oauth/authorize form.
+ *   - browser session tokens (aud "askingfate:mcp-session"), TTL 8h, set as
+ *     an HttpOnly cookie after the user signs in on the authorize page.
  */
 import { SignJWT, jwtVerify, type JWTPayload } from "jose";
 
-import { ACCESS_TOKEN_TTL_SECONDS, CONSENT_TXN_TTL_SECONDS } from "./config";
+import { ACCESS_TOKEN_TTL_SECONDS, CONSENT_TXN_TTL_SECONDS, SESSION_TTL_SECONDS } from "./config";
 import { randomToken } from "./crypto";
 
 const CONSENT_AUDIENCE = "askingfate:oauth-consent";
+const SESSION_AUDIENCE = "askingfate:mcp-session";
 
 const globalRef = globalThis as unknown as { __askingfateDevJwtSecret?: string };
 
@@ -107,6 +110,43 @@ export async function signConsentTxn(txn: ConsentTxnData, issuer: string): Promi
     .setExpirationTime(Math.floor(Date.now() / 1000) + CONSENT_TXN_TTL_SECONDS)
     .setJti(randomToken(16))
     .sign(getJwtSecret());
+}
+
+/** Claims carried by the browser session cookie (af_mcp_session). */
+export interface SessionClaims {
+  sub: string;
+  email?: string;
+  name?: string;
+}
+
+export async function signSessionToken(user: SessionClaims, issuer: string): Promise<string> {
+  return new SignJWT({ email: user.email, name: user.name })
+    .setProtectedHeader({ alg: "HS256" })
+    .setSubject(user.sub)
+    .setIssuer(issuer)
+    .setAudience(SESSION_AUDIENCE)
+    .setIssuedAt()
+    .setExpirationTime(Math.floor(Date.now() / 1000) + SESSION_TTL_SECONDS)
+    .setJti(randomToken(16))
+    .sign(getJwtSecret());
+}
+
+export async function verifySessionToken(token: string, issuer: string): Promise<SessionClaims | null> {
+  try {
+    const { payload } = await jwtVerify(token, getJwtSecret(), {
+      algorithms: ["HS256"],
+      issuer,
+      audience: SESSION_AUDIENCE,
+    });
+    if (typeof payload.sub !== "string" || payload.sub === "") return null;
+    return {
+      sub: payload.sub,
+      email: typeof payload.email === "string" ? payload.email : undefined,
+      name: typeof payload.name === "string" ? payload.name : undefined,
+    };
+  } catch {
+    return null;
+  }
 }
 
 export async function verifyConsentTxn(token: string, issuer: string): Promise<ConsentTxn | null> {

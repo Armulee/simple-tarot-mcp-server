@@ -1,8 +1,11 @@
 /**
  * OAuth 2.1 authorization endpoint.
  *
- * GET  — validates the request, requires an askingfate.com session (redirects
- *        to the main site's login page if absent), then renders a consent page.
+ * GET  — validates the request, requires an askingfate.com login. Without one
+ *        it renders a sign-in page backed by the SAME Supabase project as the
+ *        main site (email/password + Google — the main site keeps its session
+ *        in localStorage, so it cannot be shared across subdomains). With one
+ *        it renders a short consent page.
  * POST — handles the consent decision (CSRF-protected via a signed transaction
  *        token + double-submit cookie) and redirects back to the client with a
  *        single-use authorization code (60s TTL, stored hashed) or an error.
@@ -18,9 +21,10 @@ import {
   publicRequestUrl,
 } from "@/lib/oauth/config";
 import { isValidCodeChallenge, randomToken, sha256hex } from "@/lib/oauth/crypto";
-import { buildRedirect, escapeHtml, htmlResponse, redirectResponse } from "@/lib/oauth/http";
+import { buildRedirect, escapeHtml, htmlResponse, parseCookies, redirectResponse } from "@/lib/oauth/http";
 import { signConsentTxn, verifyConsentTxn } from "@/lib/oauth/jwt";
-import { buildLoginRedirect, getAskingfateUser } from "@/lib/oauth/session";
+import { buildLoginRedirect, getAskingfateUser, RETURN_COOKIE } from "@/lib/oauth/session";
+import { getSupabaseConfig, type SupabaseConfig } from "@/lib/oauth/supabase";
 import { getOAuthStore, type OAuthClient } from "@/lib/oauth/store";
 
 export const maxDuration = 15;
@@ -99,10 +103,16 @@ export async function GET(req: Request): Promise<Response> {
     return fail("invalid_target", "Unknown resource indicator.");
   }
 
-  // Require an askingfate.com login; bounce through the main site if absent.
-  const user = await getAskingfateUser(req);
+  // Require an askingfate.com login; render our own sign-in page if absent.
+  const user = await getAskingfateUser(req, issuer);
   if (!user) {
-    return redirectResponse(buildLoginRedirect(publicRequestUrl(req)));
+    const supabase = getSupabaseConfig();
+    if (!supabase) {
+      // No Supabase env — fall back to an external login page that must
+      // redirect back here (see ASKINGFATE_LOGIN_URL).
+      return redirectResponse(buildLoginRedirect(publicRequestUrl(req)));
+    }
+    return signInResponse(req, supabase, issuer, client.client_name || "MCP client");
   }
 
   // Render consent, bound to this user + request via a signed txn token and a
@@ -171,7 +181,7 @@ export async function POST(req: Request): Promise<Response> {
   }
 
   // The askingfate session must still belong to the user who saw the page.
-  const user = await getAskingfateUser(req);
+  const user = await getAskingfateUser(req, issuer);
   if (!user || user.id !== txn.user_id) {
     return errorPage(403, "เซสชันเปลี่ยนไประหว่างการยืนยัน กรุณาเริ่มเชื่อมต่อใหม่อีกครั้ง");
   }
@@ -222,15 +232,117 @@ function withSetCookie(response: Response, cookie: string): Response {
   return new Response(response.body, { status: response.status, headers });
 }
 
-function parseCookies(header: string | null): Record<string, string> {
-  const result: Record<string, string> = {};
-  if (!header) return result;
-  for (const part of header.split(";")) {
-    const eq = part.indexOf("=");
-    if (eq === -1) continue;
-    result[part.slice(0, eq).trim()] = part.slice(eq + 1).trim();
-  }
-  return result;
+/**
+ * Sign-in page shown when there is no session yet. It logs the user in
+ * against the main site's Supabase project client-side, then POSTs the
+ * access token to /oauth/session (which sets our HttpOnly session cookie)
+ * and reloads this authorize URL — which then renders the consent page.
+ * A short-lived cookie remembers this URL across the Google round-trip.
+ */
+function signInResponse(req: Request, supabase: SupabaseConfig, issuer: string, clientName: string): Response {
+  const authorizeUrl = publicRequestUrl(req);
+  const nonce = randomToken(16);
+  const response = htmlResponse(200, signInPage({ supabase, authorizeUrl, clientName, nonce }), {
+    scriptNonce: nonce,
+    connectSrc: [new URL(supabase.url).origin],
+  });
+  const secure = issuer.startsWith("https:") ? "; Secure" : "";
+  const headers = new Headers(response.headers);
+  headers.append(
+    "Set-Cookie",
+    `${RETURN_COOKIE}=${encodeURIComponent(authorizeUrl)}; Path=/oauth; Max-Age=600; HttpOnly; SameSite=Lax${secure}`,
+  );
+  return new Response(response.body, { status: response.status, headers });
+}
+
+function signInPage({
+  supabase,
+  authorizeUrl,
+  clientName,
+  nonce,
+}: {
+  supabase: SupabaseConfig;
+  authorizeUrl: string;
+  clientName: string;
+  nonce: string;
+}): string {
+  // JSON-embedded config for the inline script; <-escape to stay <script>-safe.
+  const cfg = JSON.stringify({
+    supabaseUrl: supabase.url,
+    anonKey: supabase.anonKey,
+    callbackPath: "/oauth/callback",
+  }).replace(/</g, "\\u003c");
+  const signupHref = `https://askingfate.com/signup?callbackUrl=${encodeURIComponent(authorizeUrl)}`;
+  return pageShell(
+    `
+    <h1>เข้าสู่ระบบ Asking Fate</h1>
+    <p>เข้าสู่ระบบด้วยบัญชี askingfate.com ของคุณ เพื่อเชื่อมต่อกับ <strong>${escapeHtml(clientName)}</strong></p>
+    <p id="err" class="error" hidden></p>
+    <button type="button" id="google" class="google">เข้าสู่ระบบด้วย Google</button>
+    <div class="divider"><span>หรือ</span></div>
+    <form id="pw-form" method="post" action="#">
+      <label for="email">อีเมล</label>
+      <input id="email" name="email" type="email" autocomplete="email" required />
+      <label for="password">รหัสผ่าน</label>
+      <input id="password" name="password" type="password" autocomplete="current-password" required />
+      <div class="buttons">
+        <button type="submit" class="allow">เข้าสู่ระบบ</button>
+      </div>
+    </form>
+    <p class="links">
+      <a href="${escapeHtml(signupHref)}">สมัครสมาชิก</a> ·
+      <a href="https://askingfate.com/forgot-password">ลืมรหัสผ่าน?</a>
+    </p>
+    <script nonce="${nonce}">
+      const CFG = ${cfg};
+      const errBox = document.getElementById("err");
+      function showError(message) { errBox.textContent = message; errBox.hidden = false; }
+      function busy(on) { for (const b of document.querySelectorAll("button")) b.disabled = on; }
+      async function establishSession(accessToken) {
+        const res = await fetch("/oauth/session", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ access_token: accessToken }),
+        });
+        if (!res.ok) throw new Error("session rejected");
+        location.reload();
+      }
+      document.getElementById("google").addEventListener("click", () => {
+        busy(true);
+        location.href = CFG.supabaseUrl + "/auth/v1/authorize?provider=google&redirect_to=" +
+          encodeURIComponent(location.origin + CFG.callbackPath);
+      });
+      document.getElementById("pw-form").addEventListener("submit", async (e) => {
+        e.preventDefault();
+        errBox.hidden = true;
+        busy(true);
+        try {
+          const res = await fetch(CFG.supabaseUrl + "/auth/v1/token?grant_type=password", {
+            method: "POST",
+            headers: { apikey: CFG.anonKey, "content-type": "application/json" },
+            body: JSON.stringify({
+              email: document.getElementById("email").value,
+              password: document.getElementById("password").value,
+            }),
+          });
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok || !data.access_token) {
+            const msg = data.error_description || data.msg || "";
+            showError(/invalid login credentials/i.test(msg)
+              ? "อีเมลหรือรหัสผ่านไม่ถูกต้อง"
+              : msg || "เข้าสู่ระบบไม่สำเร็จ กรุณาลองใหม่อีกครั้ง");
+            busy(false);
+            return;
+          }
+          await establishSession(data.access_token);
+        } catch {
+          showError("เข้าสู่ระบบไม่สำเร็จ กรุณาลองใหม่อีกครั้ง");
+          busy(false);
+        }
+      });
+    </script>
+  `,
+  );
 }
 
 function errorPage(status: number, message: string): Response {
@@ -304,6 +416,29 @@ function pageShell(body: string): string {
   }
   .allow { background: #7c5cd6; color: #fff; }
   .deny { background: transparent; color: #cfc3ef; border: 1px solid rgba(155, 130, 220, 0.5); }
+  button:disabled { opacity: 0.6; cursor: wait; }
+  label { display: block; margin: 14px 0 6px; font-size: 0.85rem; color: #b9a8e8; }
+  input {
+    width: 100%; box-sizing: border-box; padding: 12px 14px; border-radius: 10px;
+    border: 1px solid rgba(155, 130, 220, 0.35); background: rgba(18, 13, 32, 0.6);
+    color: #efe9ff; font-size: 1rem;
+  }
+  input:focus { outline: none; border-color: #7c5cd6; }
+  .google {
+    width: 100%; padding: 12px 0; border-radius: 10px; font-size: 1rem; font-weight: 600;
+    background: transparent; color: #efe9ff; border: 1px solid rgba(155, 130, 220, 0.5);
+  }
+  .divider {
+    display: flex; align-items: center; gap: 12px; margin: 18px 0 4px;
+    color: #8d7cb8; font-size: 0.85rem;
+  }
+  .divider::before, .divider::after { content: ""; flex: 1; height: 1px; background: rgba(155, 130, 220, 0.3); }
+  .error {
+    background: rgba(220, 80, 100, 0.12); border: 1px solid rgba(220, 80, 100, 0.45);
+    color: #ffb9c4; border-radius: 10px; padding: 10px 14px; font-size: 0.9rem;
+  }
+  .links { text-align: center; font-size: 0.9rem; margin-top: 18px; }
+  a { color: #b9a8e8; }
 </style>
 </head>
 <body><main>${body}</main></body>
