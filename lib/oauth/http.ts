@@ -97,6 +97,27 @@ export function htmlResponse(
   });
 }
 
+/**
+ * Same-origin check for CSRF protection: the request's Origin (or Referer)
+ * must match the issuer or the request's own (forwarded) host. Cross-site
+ * form posts and fetches always carry the attacker's origin, so this is a
+ * primary CSRF defence — and unlike a double-submit cookie it survives
+ * mobile in-app browsers dropping or clearing the cookie jar mid-flow.
+ */
+export function isSameOriginRequest(req: Request, issuer: string): boolean {
+  const source = req.headers.get("origin") ?? req.headers.get("referer");
+  if (!source) return false;
+  try {
+    const url = new URL(source);
+    if (url.origin === issuer) return true;
+    const host =
+      req.headers.get("x-forwarded-host")?.split(",")[0]?.trim() || req.headers.get("host");
+    return !!host && url.host === host;
+  } catch {
+    return false;
+  }
+}
+
 export function parseCookies(header: string | null): Record<string, string> {
   const result: Record<string, string> = {};
   if (!header) return result;
