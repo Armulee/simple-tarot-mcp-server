@@ -1,5 +1,5 @@
 /**
- * The full 78-card Rider–Waite–Smith tarot deck with Thai and English names.
+ * The full 78-card Rider–Waite–Smith tarot deck.
  * Kept as a static data module — no external API is needed to draw cards.
  */
 
@@ -9,8 +9,7 @@ export type Suit = "wands" | "cups" | "swords" | "pentacles";
 export interface TarotCard {
   /** Stable card id, 0–77 (0–21 major arcana, then wands, cups, swords, pentacles). */
   id: number;
-  name_en: string;
-  name_th: string;
+  name: string;
   arcana: Arcana;
   suit?: Suit;
   /** Short display numeral: Roman numeral for major arcana, rank for minor (A, 2–10, P, N, Q, K). */
@@ -24,74 +23,71 @@ const ROMAN = [
   "XI", "XII", "XIII", "XIV", "XV", "XVI", "XVII", "XVIII", "XIX", "XX", "XXI",
 ] as const;
 
-const MAJOR_ARCANA: ReadonlyArray<[string, string]> = [
-  ["The Fool", "คนเขลา"],
-  ["The Magician", "นักมายากล"],
-  ["The High Priestess", "นักบวชหญิง"],
-  ["The Empress", "จักรพรรดินี"],
-  ["The Emperor", "จักรพรรดิ"],
-  ["The Hierophant", "พระสังฆราช"],
-  ["The Lovers", "คู่รัก"],
-  ["The Chariot", "ราชรถ"],
-  ["Strength", "พลังใจ"],
-  ["The Hermit", "ฤๅษี"],
-  ["Wheel of Fortune", "กงล้อโชคชะตา"],
-  ["Justice", "ความยุติธรรม"],
-  ["The Hanged Man", "ชายผู้ถูกแขวน"],
-  ["Death", "ความตาย"],
-  ["Temperance", "ความพอประมาณ"],
-  ["The Devil", "ปีศาจ"],
-  ["The Tower", "หอคอย"],
-  ["The Star", "ดวงดาว"],
-  ["The Moon", "ดวงจันทร์"],
-  ["The Sun", "ดวงอาทิตย์"],
-  ["Judgement", "การพิพากษา"],
-  ["The World", "โลก"],
+const MAJOR_ARCANA: ReadonlyArray<string> = [
+  "The Fool",
+  "The Magician",
+  "The High Priestess",
+  "The Empress",
+  "The Emperor",
+  "The Hierophant",
+  "The Lovers",
+  "The Chariot",
+  "Strength",
+  "The Hermit",
+  "Wheel of Fortune",
+  "Justice",
+  "The Hanged Man",
+  "Death",
+  "Temperance",
+  "The Devil",
+  "The Tower",
+  "The Star",
+  "The Moon",
+  "The Sun",
+  "Judgement",
+  "The World",
 ];
 
 interface SuitInfo {
   suit: Suit;
-  name_en: string;
-  name_th: string;
+  name: string;
   glyph: string;
 }
 
 /** Glyphs follow the traditional playing-card mapping: wands→clubs, cups→hearts, swords→spades, pentacles→diamonds. */
 const SUITS: ReadonlyArray<SuitInfo> = [
-  { suit: "wands", name_en: "Wands", name_th: "ไม้เท้า", glyph: "♣" },
-  { suit: "cups", name_en: "Cups", name_th: "ถ้วย", glyph: "♥" },
-  { suit: "swords", name_en: "Swords", name_th: "ดาบ", glyph: "♠" },
-  { suit: "pentacles", name_en: "Pentacles", name_th: "เหรียญ", glyph: "♦" },
+  { suit: "wands", name: "Wands", glyph: "♣" },
+  { suit: "cups", name: "Cups", glyph: "♥" },
+  { suit: "swords", name: "Swords", glyph: "♠" },
+  { suit: "pentacles", name: "Pentacles", glyph: "♦" },
 ];
 
 interface RankInfo {
-  name_en: string;
-  name_th: string;
+  name: string;
   numeral: string;
 }
 
 const RANKS: ReadonlyArray<RankInfo> = [
-  { name_en: "Ace", name_th: "เอซ", numeral: "A" },
-  { name_en: "Two", name_th: "สอง", numeral: "2" },
-  { name_en: "Three", name_th: "สาม", numeral: "3" },
-  { name_en: "Four", name_th: "สี่", numeral: "4" },
-  { name_en: "Five", name_th: "ห้า", numeral: "5" },
-  { name_en: "Six", name_th: "หก", numeral: "6" },
-  { name_en: "Seven", name_th: "เจ็ด", numeral: "7" },
-  { name_en: "Eight", name_th: "แปด", numeral: "8" },
-  { name_en: "Nine", name_th: "เก้า", numeral: "9" },
-  { name_en: "Ten", name_th: "สิบ", numeral: "10" },
-  { name_en: "Page", name_th: "เพจ", numeral: "P" },
-  { name_en: "Knight", name_th: "อัศวิน", numeral: "N" },
-  { name_en: "Queen", name_th: "ราชินี", numeral: "Q" },
-  { name_en: "King", name_th: "ราชา", numeral: "K" },
+  { name: "Ace", numeral: "A" },
+  { name: "Two", numeral: "2" },
+  { name: "Three", numeral: "3" },
+  { name: "Four", numeral: "4" },
+  { name: "Five", numeral: "5" },
+  { name: "Six", numeral: "6" },
+  { name: "Seven", numeral: "7" },
+  { name: "Eight", numeral: "8" },
+  { name: "Nine", numeral: "9" },
+  { name: "Ten", numeral: "10" },
+  { name: "Page", numeral: "P" },
+  { name: "Knight", numeral: "N" },
+  { name: "Queen", numeral: "Q" },
+  { name: "King", numeral: "K" },
 ];
 
 function buildDeck(): ReadonlyArray<TarotCard> {
-  const cards: TarotCard[] = MAJOR_ARCANA.map(([name_en, name_th], i) => ({
+  const cards: TarotCard[] = MAJOR_ARCANA.map((name, i) => ({
     id: i,
-    name_en,
-    name_th,
+    name,
     arcana: "major",
     numeral: ROMAN[i],
     glyph: "✦",
@@ -100,8 +96,7 @@ function buildDeck(): ReadonlyArray<TarotCard> {
     for (const rank of RANKS) {
       cards.push({
         id: cards.length,
-        name_en: `${rank.name_en} of ${suit.name_en}`,
-        name_th: `${rank.name_th}${suit.name_th}`,
+        name: `${rank.name} of ${suit.name}`,
         arcana: "minor",
         suit: suit.suit,
         numeral: rank.numeral,

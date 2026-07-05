@@ -1,5 +1,5 @@
 /**
- * Asking Fate — remote MCP server (Streamable HTTP only).
+ * AskingFate — remote MCP server (Streamable HTTP only).
  *
  * Endpoint: /mcp  (deployed as https://mcp.askingfate.com/mcp)
  *
@@ -66,7 +66,7 @@ const categorySchema = z.enum(["love", "career", "money", "health", "overall"], 
 const purposeSchema = z.enum(["wedding", "business", "moving", "car"], {
   errorMap: () => ({
     message:
-      'purpose must be one of "wedding" (งานมงคลสมรส), "business" (เปิดกิจการ), "moving" (ขึ้นบ้านใหม่), or "car" (ออกรถ).',
+      'purpose must be one of "wedding", "business" (opening a business), "moving" (moving house), or "car" (taking delivery of a car).',
   }),
 });
 
@@ -109,11 +109,9 @@ const handler = createMcpHandler(
         const fallbackDraw = spread.positions.map((pos, i) => ({
           position_index: pos.index,
           position_key: pos.key,
-          position_th: pos.label_th,
-          position_en: pos.label_en,
+          position_label: pos.label,
           position_meaning: pos.meaning,
-          name_en: deck[i].name_en,
-          name_th: deck[i].name_th,
+          name: deck[i].name,
           orientation: deck[i].reversed ? "reversed" : "upright",
         }));
 
@@ -122,15 +120,14 @@ const handler = createMcpHandler(
             {
               type: "text",
               text:
-                `🔮 The deck has been shuffled for a ${spread.name_en} reading and an interactive card-picking UI is being shown to the user. ` +
+                `🔮 The deck has been shuffled for a ${spread.name} reading and an interactive card-picking UI is being shown to the user. ` +
                 "Do NOT interpret any cards yet — wait for the user's picks, which will arrive as a follow-up message from the UI listing the chosen cards and their positions. " +
                 "Only if this client cannot display the interactive UI, use `fallback_draw` in structuredContent as the drawn cards and interpret those instead.",
             },
           ],
           structuredContent: {
             spread_type: spread.type,
-            spread_name_th: spread.name_th,
-            spread_name_en: spread.name_en,
+            spread_name: spread.name,
             question: trimmedQuestion,
             positions: spread.positions,
             deck,
@@ -177,7 +174,7 @@ const handler = createMcpHandler(
       {
         title: "Get Thai Horoscope Data",
         description:
-          "Look up structured Thai astrology data (ตำราทักษา) for a birth date: the day-of-week planet, element, traditional lucky/unlucky colours, lucky numbers, the eight Thaksa positions, and — when a birth time is given — an approximate ascendant (ลัคนา). Use this when the user asks about their Thai horoscope, ดวงวันเกิด, สีมงคล, or เลขมงคล for a specific life area. Returns raw reference data computed from traditional tables for the caller to interpret; it does not generate fortune text or guarantee outcomes.",
+          "Look up structured Thai astrology data (the traditional Thaksa tables) for a birth date: the day-of-week planet, element, traditional lucky/unlucky colours, lucky numbers, the eight Thaksa positions, and — when a birth time is given — an approximate ascendant (lagna). Use this when the user asks about their Thai horoscope, birth-day fortune, lucky colours, or lucky numbers for a specific life area. Returns raw reference data computed from traditional tables for the caller to interpret; it does not generate fortune text or guarantee outcomes.",
         inputSchema: {
           birth_date: z
             .string()
@@ -234,7 +231,7 @@ const handler = createMcpHandler(
       {
         title: "Get Zodiac Info",
         description:
-          "Look up zodiac reference data for a birth date: the Western (tropical) sign with element, quality and traditional ruling planet; the approximate Thai sidereal sign (ราศีแบบไทย); and the Thai/Chinese 12-year animal (นักษัตร) with its five-element cycle and year-boundary caveats. Use this when the user asks what their zodiac sign, ราศี, or ปีนักษัตร is. Returns structured facts from traditional tables only — no horoscope text.",
+          "Look up zodiac reference data for a birth date: the Western (tropical) sign with element, quality and traditional ruling planet; the approximate Thai sidereal sign; and the Thai/Chinese 12-year animal with its five-element cycle and year-boundary caveats. Use this when the user asks what their zodiac sign or birth-year animal is. Returns structured facts from traditional tables only — no horoscope text.",
         inputSchema: {
           birth_date: z
             .string()
@@ -257,13 +254,13 @@ const handler = createMcpHandler(
       {
         title: "Get Auspicious Dates",
         description:
-          "List auspicious dates (วันดี) in a given month for a purpose — wedding, opening a business, moving house, or taking delivery of a car — rated by traditional Thai day-of-week principles, each with a short reason, plus the weekdays to avoid. Use this when the user is planning an event and asks for a good date. Ratings follow basic traditional day rules (not a personalised ฤกษ์ from the lunar calendar), and the result says so explicitly.",
+          "List auspicious dates in a given month for a purpose — wedding, opening a business, moving house, or taking delivery of a car — rated by traditional Thai day-of-week principles, each with a short reason, plus the weekdays to avoid. Use this when the user is planning an event and asks for a good date. Ratings follow basic traditional day rules (not a personalised auspicious-time computation from the lunar calendar), and the result says so explicitly.",
         inputSchema: {
           month: z
             .string()
             .describe('Target month in YYYY-MM format, e.g. "2026-08" for August 2026.'),
           purpose: purposeSchema.describe(
-            'Purpose of the event: "wedding" (งานมงคลสมรส), "business" (เปิดกิจการ), "moving" (ขึ้นบ้านใหม่), or "car" (ออกรถ).',
+            'Purpose of the event: "wedding", "business" (opening a business), "moving" (moving house), or "car" (taking delivery of a car).',
           ),
         },
         annotations: { ...READ_ONLY, idempotentHint: true },
@@ -283,7 +280,7 @@ const handler = createMcpHandler(
   {
     serverInfo: { name: "askingfate-fortune-teller", version: "1.0.0" },
     instructions:
-      "Asking Fate (askingfate.com) fortune-telling tools: draw_tarot_spread opens an interactive card-picking UI (wait for the user's picks before interpreting), while get_thai_horoscope, get_zodiac_info and get_auspicious_dates return structured Thai-astrology reference data for you to interpret. All tools are read-only and computed from traditional tables — present readings as guidance based on หลักโหราศาสตร์, never as guaranteed predictions.",
+      "AskingFate (askingfate.com) fortune-telling tools: draw_tarot_spread opens an interactive card-picking UI (wait for the user's picks before interpreting), while get_thai_horoscope, get_zodiac_info and get_auspicious_dates return structured Thai-astrology reference data for you to interpret. All tools are read-only and computed from traditional tables — present readings as guidance based on traditional astrological principles, never as guaranteed predictions.",
   },
   {
     basePath: "", // matches app/[transport]/route.ts → endpoint is /mcp

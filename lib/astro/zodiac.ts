@@ -1,37 +1,33 @@
 /**
  * Zodiac tables: Western (tropical) signs, Thai sidereal signs, and the
- * Thai/Chinese 12-year animal cycle (นักษัตร).
+ * Thai/Chinese 12-year animal cycle.
  */
 
 import { ParsedDate } from "../dates";
 
 export interface ZodiacSign {
-  name_en: string;
-  name_th: string;
+  name: string;
   symbol: string;
-  element_en: "fire" | "earth" | "air" | "water";
-  element_th: string;
-  quality_en: "cardinal" | "fixed" | "mutable";
-  quality_th: string;
-  ruling_planet_en: string;
-  ruling_planet_th: string;
+  element: "fire" | "earth" | "air" | "water";
+  quality: "cardinal" | "fixed" | "mutable";
+  ruling_planet: string;
   date_range: string;
 }
 
 /** Tropical zodiac; index 0 = Aries. Start dates used for lookup are inclusive. */
 export const WESTERN_SIGNS: ReadonlyArray<ZodiacSign & { start: [number, number] }> = [
-  { name_en: "Aries", name_th: "ราศีเมษ", symbol: "♈", element_en: "fire", element_th: "ธาตุไฟ", quality_en: "cardinal", quality_th: "จรราศี", ruling_planet_en: "Mars", ruling_planet_th: "ดาวอังคาร", date_range: "Mar 21 – Apr 19", start: [3, 21] },
-  { name_en: "Taurus", name_th: "ราศีพฤษภ", symbol: "♉", element_en: "earth", element_th: "ธาตุดิน", quality_en: "fixed", quality_th: "สถิรราศี", ruling_planet_en: "Venus", ruling_planet_th: "ดาวศุกร์", date_range: "Apr 20 – May 20", start: [4, 20] },
-  { name_en: "Gemini", name_th: "ราศีเมถุน", symbol: "♊", element_en: "air", element_th: "ธาตุลม", quality_en: "mutable", quality_th: "อุภยราศี", ruling_planet_en: "Mercury", ruling_planet_th: "ดาวพุธ", date_range: "May 21 – Jun 20", start: [5, 21] },
-  { name_en: "Cancer", name_th: "ราศีกรกฎ", symbol: "♋", element_en: "water", element_th: "ธาตุน้ำ", quality_en: "cardinal", quality_th: "จรราศี", ruling_planet_en: "Moon", ruling_planet_th: "ดาวจันทร์", date_range: "Jun 21 – Jul 22", start: [6, 21] },
-  { name_en: "Leo", name_th: "ราศีสิงห์", symbol: "♌", element_en: "fire", element_th: "ธาตุไฟ", quality_en: "fixed", quality_th: "สถิรราศี", ruling_planet_en: "Sun", ruling_planet_th: "ดาวอาทิตย์", date_range: "Jul 23 – Aug 22", start: [7, 23] },
-  { name_en: "Virgo", name_th: "ราศีกันย์", symbol: "♍", element_en: "earth", element_th: "ธาตุดิน", quality_en: "mutable", quality_th: "อุภยราศี", ruling_planet_en: "Mercury", ruling_planet_th: "ดาวพุธ", date_range: "Aug 23 – Sep 22", start: [8, 23] },
-  { name_en: "Libra", name_th: "ราศีตุลย์", symbol: "♎", element_en: "air", element_th: "ธาตุลม", quality_en: "cardinal", quality_th: "จรราศี", ruling_planet_en: "Venus", ruling_planet_th: "ดาวศุกร์", date_range: "Sep 23 – Oct 22", start: [9, 23] },
-  { name_en: "Scorpio", name_th: "ราศีพิจิก", symbol: "♏", element_en: "water", element_th: "ธาตุน้ำ", quality_en: "fixed", quality_th: "สถิรราศี", ruling_planet_en: "Mars", ruling_planet_th: "ดาวอังคาร", date_range: "Oct 23 – Nov 21", start: [10, 23] },
-  { name_en: "Sagittarius", name_th: "ราศีธนู", symbol: "♐", element_en: "fire", element_th: "ธาตุไฟ", quality_en: "mutable", quality_th: "อุภยราศี", ruling_planet_en: "Jupiter", ruling_planet_th: "ดาวพฤหัสบดี", date_range: "Nov 22 – Dec 21", start: [11, 22] },
-  { name_en: "Capricorn", name_th: "ราศีมังกร", symbol: "♑", element_en: "earth", element_th: "ธาตุดิน", quality_en: "cardinal", quality_th: "จรราศี", ruling_planet_en: "Saturn", ruling_planet_th: "ดาวเสาร์", date_range: "Dec 22 – Jan 19", start: [12, 22] },
-  { name_en: "Aquarius", name_th: "ราศีกุมภ์", symbol: "♒", element_en: "air", element_th: "ธาตุลม", quality_en: "fixed", quality_th: "สถิรราศี", ruling_planet_en: "Saturn", ruling_planet_th: "ดาวเสาร์", date_range: "Jan 20 – Feb 18", start: [1, 20] },
-  { name_en: "Pisces", name_th: "ราศีมีน", symbol: "♓", element_en: "water", element_th: "ธาตุน้ำ", quality_en: "mutable", quality_th: "อุภยราศี", ruling_planet_en: "Jupiter", ruling_planet_th: "ดาวพฤหัสบดี", date_range: "Feb 19 – Mar 20", start: [2, 19] },
+  { name: "Aries", symbol: "♈", element: "fire", quality: "cardinal", ruling_planet: "Mars", date_range: "Mar 21 – Apr 19", start: [3, 21] },
+  { name: "Taurus", symbol: "♉", element: "earth", quality: "fixed", ruling_planet: "Venus", date_range: "Apr 20 – May 20", start: [4, 20] },
+  { name: "Gemini", symbol: "♊", element: "air", quality: "mutable", ruling_planet: "Mercury", date_range: "May 21 – Jun 20", start: [5, 21] },
+  { name: "Cancer", symbol: "♋", element: "water", quality: "cardinal", ruling_planet: "Moon", date_range: "Jun 21 – Jul 22", start: [6, 21] },
+  { name: "Leo", symbol: "♌", element: "fire", quality: "fixed", ruling_planet: "Sun", date_range: "Jul 23 – Aug 22", start: [7, 23] },
+  { name: "Virgo", symbol: "♍", element: "earth", quality: "mutable", ruling_planet: "Mercury", date_range: "Aug 23 – Sep 22", start: [8, 23] },
+  { name: "Libra", symbol: "♎", element: "air", quality: "cardinal", ruling_planet: "Venus", date_range: "Sep 23 – Oct 22", start: [9, 23] },
+  { name: "Scorpio", symbol: "♏", element: "water", quality: "fixed", ruling_planet: "Mars", date_range: "Oct 23 – Nov 21", start: [10, 23] },
+  { name: "Sagittarius", symbol: "♐", element: "fire", quality: "mutable", ruling_planet: "Jupiter", date_range: "Nov 22 – Dec 21", start: [11, 22] },
+  { name: "Capricorn", symbol: "♑", element: "earth", quality: "cardinal", ruling_planet: "Saturn", date_range: "Dec 22 – Jan 19", start: [12, 22] },
+  { name: "Aquarius", symbol: "♒", element: "air", quality: "fixed", ruling_planet: "Saturn", date_range: "Jan 20 – Feb 18", start: [1, 20] },
+  { name: "Pisces", symbol: "♓", element: "water", quality: "mutable", ruling_planet: "Jupiter", date_range: "Feb 19 – Mar 20", start: [2, 19] },
 ];
 
 export function westernSign(month: number, day: number): ZodiacSign {
@@ -51,26 +47,25 @@ export function westernSign(month: number, day: number): ZodiacSign {
 }
 
 export interface ThaiSiderealSign {
-  name_th: string;
-  name_en: string;
+  name: string;
   /** Approximate start date in the Thai solar (sidereal) calendar. */
   start: [number, number];
 }
 
 /** Thai sidereal signs run ~23 days behind the tropical zodiac; boundaries are approximate. */
 export const THAI_SIDEREAL_SIGNS: ReadonlyArray<ThaiSiderealSign> = [
-  { name_th: "ราศีเมษ", name_en: "Aries (sidereal)", start: [4, 13] },
-  { name_th: "ราศีพฤษภ", name_en: "Taurus (sidereal)", start: [5, 14] },
-  { name_th: "ราศีเมถุน", name_en: "Gemini (sidereal)", start: [6, 14] },
-  { name_th: "ราศีกรกฎ", name_en: "Cancer (sidereal)", start: [7, 15] },
-  { name_th: "ราศีสิงห์", name_en: "Leo (sidereal)", start: [8, 17] },
-  { name_th: "ราศีกันย์", name_en: "Virgo (sidereal)", start: [9, 17] },
-  { name_th: "ราศีตุลย์", name_en: "Libra (sidereal)", start: [10, 17] },
-  { name_th: "ราศีพิจิก", name_en: "Scorpio (sidereal)", start: [11, 16] },
-  { name_th: "ราศีธนู", name_en: "Sagittarius (sidereal)", start: [12, 16] },
-  { name_th: "ราศีมังกร", name_en: "Capricorn (sidereal)", start: [1, 14] },
-  { name_th: "ราศีกุมภ์", name_en: "Aquarius (sidereal)", start: [2, 13] },
-  { name_th: "ราศีมีน", name_en: "Pisces (sidereal)", start: [3, 14] },
+  { name: "Aries (sidereal)", start: [4, 13] },
+  { name: "Taurus (sidereal)", start: [5, 14] },
+  { name: "Gemini (sidereal)", start: [6, 14] },
+  { name: "Cancer (sidereal)", start: [7, 15] },
+  { name: "Leo (sidereal)", start: [8, 17] },
+  { name: "Virgo (sidereal)", start: [9, 17] },
+  { name: "Libra (sidereal)", start: [10, 17] },
+  { name: "Scorpio (sidereal)", start: [11, 16] },
+  { name: "Sagittarius (sidereal)", start: [12, 16] },
+  { name: "Capricorn (sidereal)", start: [1, 14] },
+  { name: "Aquarius (sidereal)", start: [2, 13] },
+  { name: "Pisces (sidereal)", start: [3, 14] },
 ];
 
 export function thaiSiderealSignIndex(month: number, day: number): number {
@@ -90,50 +85,46 @@ export function thaiSiderealSignIndex(month: number, day: number): number {
 }
 
 export interface ChineseZodiacAnimal {
-  name_th: string;
-  animal_th: string;
-  animal_en: string;
+  animal: string;
 }
 
-/** Index 0 = Rat (ปีชวด); year 2020 was a Rat year. */
+/** Index 0 = Rat; year 2020 was a Rat year. */
 export const CHINESE_ZODIAC: ReadonlyArray<ChineseZodiacAnimal> = [
-  { name_th: "ปีชวด", animal_th: "หนู", animal_en: "Rat" },
-  { name_th: "ปีฉลู", animal_th: "วัว", animal_en: "Ox" },
-  { name_th: "ปีขาล", animal_th: "เสือ", animal_en: "Tiger" },
-  { name_th: "ปีเถาะ", animal_th: "กระต่าย", animal_en: "Rabbit" },
-  { name_th: "ปีมะโรง", animal_th: "งูใหญ่ (มังกร)", animal_en: "Dragon" },
-  { name_th: "ปีมะเส็ง", animal_th: "งูเล็ก", animal_en: "Snake" },
-  { name_th: "ปีมะเมีย", animal_th: "ม้า", animal_en: "Horse" },
-  { name_th: "ปีมะแม", animal_th: "แพะ", animal_en: "Goat" },
-  { name_th: "ปีวอก", animal_th: "ลิง", animal_en: "Monkey" },
-  { name_th: "ปีระกา", animal_th: "ไก่", animal_en: "Rooster" },
-  { name_th: "ปีจอ", animal_th: "หมา", animal_en: "Dog" },
-  { name_th: "ปีกุน", animal_th: "หมู", animal_en: "Pig" },
+  { animal: "Rat" },
+  { animal: "Ox" },
+  { animal: "Tiger" },
+  { animal: "Rabbit" },
+  { animal: "Dragon" },
+  { animal: "Snake" },
+  { animal: "Horse" },
+  { animal: "Goat" },
+  { animal: "Monkey" },
+  { animal: "Rooster" },
+  { animal: "Dog" },
+  { animal: "Pig" },
 ];
 
-const STEM_ELEMENTS: ReadonlyArray<{ th: string; en: string }> = [
-  { th: "ธาตุทอง", en: "metal" }, // years ending 0, 1
-  { th: "ธาตุน้ำ", en: "water" }, // 2, 3
-  { th: "ธาตุไม้", en: "wood" }, // 4, 5
-  { th: "ธาตุไฟ", en: "fire" }, // 6, 7
-  { th: "ธาตุดิน", en: "earth" }, // 8, 9
+const STEM_ELEMENTS: ReadonlyArray<string> = [
+  "metal", // years ending 0, 1
+  "water", // 2, 3
+  "wood", // 4, 5
+  "fire", // 6, 7
+  "earth", // 8, 9
 ];
 
 export function chineseZodiac(year: number): {
   animal: ChineseZodiacAnimal;
   previous_animal: ChineseZodiacAnimal;
-  element_th: string;
-  element_en: string;
+  element: string;
   yin_yang: "yang" | "yin";
 } {
   const idx = (((year - 2020) % 12) + 12) % 12;
   const prev = (idx + 11) % 12;
-  const stem = STEM_ELEMENTS[Math.floor((year % 10) / 2)];
+  const element = STEM_ELEMENTS[Math.floor((year % 10) / 2)];
   return {
     animal: CHINESE_ZODIAC[idx],
     previous_animal: CHINESE_ZODIAC[prev],
-    element_th: stem.th,
-    element_en: stem.en,
+    element,
     yin_yang: year % 2 === 0 ? "yang" : "yin",
   };
 }
@@ -142,20 +133,16 @@ export interface ZodiacInfoData {
   birth_date: string;
   western_zodiac: ZodiacSign;
   thai_sidereal_zodiac: {
-    name_th: string;
-    name_en: string;
-    note_th: string;
+    name: string;
+    note: string;
   };
   chinese_thai_zodiac: {
-    name_th: string;
-    animal_th: string;
-    animal_en: string;
-    element_th: string;
-    element_en: string;
+    animal: string;
+    element: string;
     yin_yang: "yang" | "yin";
-    notes_th: string[];
+    notes: string[];
   };
-  disclaimer_th: string;
+  disclaimer: string;
 }
 
 export function buildZodiacInfo(date: ParsedDate, rawDate: string): ZodiacInfoData {
@@ -166,46 +153,38 @@ export function buildZodiacInfo(date: ParsedDate, rawDate: string): ZodiacInfoDa
   const notes: string[] = [];
   if (date.month === 1 || (date.month === 2 && date.day <= 20)) {
     notes.push(
-      `เกิดช่วงต้นปีก่อนตรุษจีน หากนับแบบจีน (เปลี่ยนปีที่ตรุษจีน ปลายมกราคม–กลางกุมภาพันธ์) อาจเป็น${chinese.previous_animal.name_th} (${chinese.previous_animal.animal_en}) — ควรตรวจสอบวันตรุษจีนของปีเกิด`,
+      `Born early in the year before Chinese New Year: under Chinese reckoning (the year changes at Chinese New Year, late January–mid February) the animal may instead be the previous year's, ${chinese.previous_animal.animal} — check the Chinese New Year date of the birth year.`,
     );
   }
   if (date.month === 1 || date.month === 2 || date.month === 3 || (date.month === 4 && date.day <= 13)) {
     notes.push(
-      `ตำราไทยบางสำนักเปลี่ยนปีนักษัตรที่สงกรานต์ (เมษายน) หากนับแบบนั้น ผู้เกิดก่อนสงกรานต์จะเป็น${chinese.previous_animal.name_th} (${chinese.previous_animal.animal_en})`,
+      `Some Thai traditions change the zodiac year at Songkran (mid April); counted that way, someone born before Songkran belongs to the previous year's animal, ${chinese.previous_animal.animal}.`,
     );
   }
-  notes.push("ค่าที่ให้เป็นการนับตามปีปฏิทินสากล (1 มกราคม) ซึ่งเป็นแบบที่ใช้แพร่หลายในไทยปัจจุบัน");
+  notes.push(
+    "Values use the international calendar year (changing on 1 January), the convention most widely used in Thailand today.",
+  );
 
   return {
     birth_date: rawDate,
     western_zodiac: {
-      name_en: western.name_en,
-      name_th: western.name_th,
+      name: western.name,
       symbol: western.symbol,
-      element_en: western.element_en,
-      element_th: western.element_th,
-      quality_en: western.quality_en,
-      quality_th: western.quality_th,
-      ruling_planet_en: western.ruling_planet_en,
-      ruling_planet_th: western.ruling_planet_th,
+      element: western.element,
+      quality: western.quality,
+      ruling_planet: western.ruling_planet,
       date_range: western.date_range,
     },
     thai_sidereal_zodiac: {
-      name_th: sidereal.name_th,
-      name_en: sidereal.name_en,
-      note_th:
-        "ราศีแบบไทย (นิรายนะ/สุริยคติไทย) เหลื่อมจากราศีสากลราว 3 สัปดาห์ ขอบเขตวันที่เป็นค่าประมาณตามปฏิทินโหราศาสตร์ไทย",
+      name: sidereal.name,
+      note: "The Thai sidereal zodiac lags the tropical (Western) zodiac by roughly three weeks; boundary dates are approximations from the Thai astrological calendar.",
     },
     chinese_thai_zodiac: {
-      name_th: chinese.animal.name_th,
-      animal_th: chinese.animal.animal_th,
-      animal_en: chinese.animal.animal_en,
-      element_th: chinese.element_th,
-      element_en: chinese.element_en,
+      animal: chinese.animal.animal,
+      element: chinese.element,
       yin_yang: chinese.yin_yang,
-      notes_th: notes,
+      notes,
     },
-    disclaimer_th:
-      "ข้อมูลอ้างอิงตามตารางโหราศาสตร์แบบดั้งเดิม ใช้เพื่อการศึกษาและความบันเทิง",
+    disclaimer: "Reference data from traditional astrology tables, for study and entertainment.",
   };
 }

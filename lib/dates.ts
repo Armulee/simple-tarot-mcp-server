@@ -78,22 +78,18 @@ export function parseTime(paramName: string, value: string): ParseResult<ParsedT
   return { ok: true, value: { hour, minute } };
 }
 
-export const THAI_MONTHS = [
-  "มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน", "พฤษภาคม", "มิถุนายน",
-  "กรกฎาคม", "สิงหาคม", "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม",
-] as const;
-
-export const THAI_WEEKDAYS = [
-  "วันอาทิตย์", "วันจันทร์", "วันอังคาร", "วันพุธ", "วันพฤหัสบดี", "วันศุกร์", "วันเสาร์",
+export const EN_MONTHS = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December",
 ] as const;
 
 export const EN_WEEKDAYS = [
   "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday",
 ] as const;
 
-/** Format e.g. "วันศุกร์ที่ 6 กุมภาพันธ์ พ.ศ. 2569". */
-export function formatThaiDate(d: { year: number; month: number; day: number; weekday: number }): string {
-  return `${THAI_WEEKDAYS[d.weekday]}ที่ ${d.day} ${THAI_MONTHS[d.month - 1]} พ.ศ. ${d.year + 543}`;
+/** Format e.g. "Friday, 6 February 2026 (B.E. 2569)" — B.E. = Thai Buddhist Era. */
+export function formatLongDate(d: { year: number; month: number; day: number; weekday: number }): string {
+  return `${EN_WEEKDAYS[d.weekday]}, ${d.day} ${EN_MONTHS[d.month - 1]} ${d.year} (B.E. ${d.year + 543})`;
 }
 
 export function isoDate(year: number, month: number, day: number): string {

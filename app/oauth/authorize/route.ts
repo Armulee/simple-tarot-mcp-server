@@ -34,8 +34,8 @@ export const maxDuration = 15;
 const CONSENT_COOKIE = "af_oauth_consent";
 
 const SCOPE_DESCRIPTIONS: Record<string, string> = {
-  mcp: "เข้าถึงเครื่องมือดูดวงของ AskingFate — ไพ่ทาโรต์ ดวงไทย ราศี และฤกษ์มงคล",
-  claudeai: "เปิดไพ่และดูดวงในนามของคุณผ่าน Claude",
+  mcp: "Access AskingFate's fortune-telling tools — tarot, Thai horoscope, zodiac, and auspicious dates",
+  claudeai: "Draw cards and read your fortune on your behalf through Claude",
 };
 
 /* ------------------------------------------------------------------ */
@@ -55,23 +55,23 @@ export async function GET(req: Request): Promise<Response> {
     try {
       client = await getOAuthStore().getClient(clientId);
     } catch {
-      return errorPage(503, "ระบบไม่พร้อมใช้งานชั่วคราว กรุณาลองใหม่อีกครั้ง (storage unavailable)");
+      return errorPage(503, "Service temporarily unavailable — please try again shortly (storage unavailable).");
     }
   }
   if (!client) {
-    return errorPage(400, "ไม่รู้จัก client นี้ (unknown client_id) — กรุณาเชื่อมต่อใหม่จากแอปของคุณ");
+    return errorPage(400, "Unknown client_id — please reconnect from your app.");
   }
 
   let redirectUri: string;
   if (redirectUriParam) {
     if (!client.redirect_uris.includes(redirectUriParam)) {
-      return errorPage(400, "redirect_uri ไม่ตรงกับที่ลงทะเบียนไว้ (redirect_uri mismatch)");
+      return errorPage(400, "redirect_uri does not match the registered value.");
     }
     redirectUri = redirectUriParam;
   } else if (client.redirect_uris.length === 1) {
     redirectUri = client.redirect_uris[0];
   } else {
-    return errorPage(400, "ต้องระบุ redirect_uri (redirect_uri is required)");
+    return errorPage(400, "redirect_uri is required.");
   }
 
   // From here on, errors are reported by redirecting back to the client.
@@ -118,7 +118,7 @@ export async function GET(req: Request): Promise<Response> {
       // fail loudly here instead of looping through the main site.
       return errorPage(
         503,
-        "ระบบยืนยันตัวตนยังไม่ได้ตั้งค่า (SUPABASE_URL / SUPABASE_ANON_KEY must be set on this deployment)",
+        "Sign-in is not configured (SUPABASE_URL / SUPABASE_ANON_KEY must be set on this deployment).",
       );
     }
     return mainSiteSignInRedirect(req, issuer);
@@ -168,31 +168,31 @@ export async function POST(req: Request): Promise<Response> {
   try {
     form = await req.formData();
   } catch {
-    return errorPage(400, "คำขอไม่ถูกต้อง (malformed form submission)");
+    return errorPage(400, "Malformed form submission.");
   }
   const decision = form.get("decision");
   const txnToken = form.get("txn");
   if (typeof decision !== "string" || typeof txnToken !== "string") {
-    return errorPage(400, "คำขอไม่ถูกต้อง (missing form fields)");
+    return errorPage(400, "Malformed form submission (missing form fields).");
   }
 
   const issuer = issuerFromRequest(req);
   const txn = await verifyConsentTxn(txnToken, issuer);
   if (!txn) {
-    return errorPage(400, "หน้ายืนยันหมดอายุแล้ว กรุณาเริ่มเชื่อมต่อใหม่อีกครั้ง (consent expired)");
+    return errorPage(400, "This consent page has expired — please start the connection again.");
   }
 
   // Double-submit cookie must match the hash bound into the txn token.
   const cookies = parseCookies(req.headers.get("cookie"));
   const nonce = cookies[CONSENT_COOKIE];
   if (!nonce || sha256hex(nonce) !== txn.nonce_hash) {
-    return errorPage(400, "การยืนยันไม่ถูกต้อง (CSRF check failed) — กรุณาเริ่มใหม่อีกครั้ง");
+    return errorPage(400, "Verification failed (CSRF check) — please start again.");
   }
 
   // The askingfate session must still belong to the user who saw the page.
   const user = await getAskingfateUser(req, issuer);
   if (!user || user.id !== txn.user_id) {
-    return errorPage(403, "เซสชันเปลี่ยนไประหว่างการยืนยัน กรุณาเริ่มเชื่อมต่อใหม่อีกครั้ง");
+    return errorPage(403, "Your session changed during confirmation — please start the connection again.");
   }
 
   const clearCookie = `${CONSENT_COOKIE}=; Path=/oauth; Max-Age=0; HttpOnly; SameSite=Lax${
@@ -224,7 +224,7 @@ export async function POST(req: Request): Promise<Response> {
       AUTH_CODE_TTL_SECONDS,
     );
   } catch {
-    return errorPage(503, "ระบบไม่พร้อมใช้งานชั่วคราว กรุณาลองใหม่อีกครั้ง (storage unavailable)");
+    return errorPage(503, "Service temporarily unavailable — please try again shortly (storage unavailable).");
   }
 
   const success = buildRedirect(txn.redirect_uri, { code, state: txn.state });
@@ -266,10 +266,10 @@ function errorPage(status: number, message: string): Response {
     pageShell(
       `
       <div class="brand"><img src="/assets/logo.png" alt="AskingFate" /></div>
-      <h1>เกิดข้อผิดพลาด</h1>
+      <h1>Something went wrong</h1>
       <p class="sub">${escapeHtml(message)}</p>
     `,
-      "AskingFate — เกิดข้อผิดพลาด",
+      "AskingFate — Error",
     ),
   );
 }
@@ -298,23 +298,23 @@ function consentPage({
   return pageShell(
     `
     <div class="brand">
-      <img src="/assets/logo.png" alt="AskingFate" />
-      <div class="dots"><i></i><i></i><i></i></div>
       ${connectorBadge}
+      <div class="dots"><i></i><i></i><i></i></div>
+      <img src="/assets/logo.png" alt="AskingFate" />
     </div>
-    <h1>อนุญาตการเชื่อมต่อ</h1>
-    <p class="sub"><strong>${escapeHtml(clientName)}</strong> ต้องการเชื่อมต่อกับบัญชี <strong>AskingFate</strong> ของคุณ</p>
+    <h1>Authorize connection</h1>
+    <p class="sub"><strong>${escapeHtml(clientName)}</strong> wants to connect to your <strong>AskingFate</strong> account</p>
     <div class="account">${escapeHtml(userLabel)}</div>
     <ul class="perms">${scopeItems}</ul>
     <form method="post" action="/oauth/authorize">
       <input type="hidden" name="txn" value="${escapeHtml(txn)}" />
       <div class="buttons">
-        <button type="submit" name="decision" value="allow" class="allow">อนุญาต</button>
-        <button type="submit" name="decision" value="deny" class="deny">ปฏิเสธ</button>
+        <button type="submit" name="decision" value="allow" class="allow">Allow</button>
+        <button type="submit" name="decision" value="deny" class="deny">Deny</button>
       </div>
     </form>
-    <p class="fineprint">หลังกดอนุญาต คุณจะถูกพากลับไปยัง ${escapeHtml(clientName)} โดยอัตโนมัติ</p>
+    <p class="fineprint">After you allow, you will be returned to ${escapeHtml(clientName)} automatically</p>
   `,
-    "AskingFate — อนุญาตการเชื่อมต่อ",
+    "AskingFate — Authorize connection",
   );
 }
