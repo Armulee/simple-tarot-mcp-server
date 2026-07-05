@@ -1,15 +1,17 @@
 /**
- * Return leg of the Supabase OAuth (Google) sign-in started on the
- * /oauth/authorize sign-in page.
+ * Sign-in return leg. Two flows land here, both with the Supabase access
+ * token in the URL FRAGMENT:
+ *   - default: askingfate.com/signin (or /signup, or its Google
+ *     /auth/callback leg) redirects back after the user logs in there
+ *   - OAUTH_HOSTED_SIGNIN=true: Supabase itself redirects here after the
+ *     Google leg started on our own sign-in page (implicit flow) — this URL
+ *     must then be allowlisted in the Supabase project under
+ *     Authentication → URL Configuration → Redirect URLs
  *
- * Supabase redirects here with the tokens in the URL FRAGMENT (implicit
- * flow — same as the main site uses), so this must be a browser page: its
+ * Fragments never reach the server, so this must be a browser page: its
  * inline script reads #access_token, POSTs it to /oauth/session to set our
  * HttpOnly session cookie, then returns to the authorize URL remembered in
  * the af_oauth_return cookie (validated to be our own authorize endpoint).
- *
- * NOTE: this URL must be allowlisted in the Supabase project under
- * Authentication → URL Configuration → Redirect URLs.
  */
 import { issuerFromRequest } from "@/lib/oauth/config";
 import { randomToken } from "@/lib/oauth/crypto";
