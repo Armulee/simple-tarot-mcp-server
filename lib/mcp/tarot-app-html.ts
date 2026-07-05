@@ -12,8 +12,10 @@
  *   host → view  request       ping, ui/resource-teardown
  *
  * The card deck arrives via the draw_tarot_spread tool result
- * (structuredContent.deck: 78 pre-shuffled cards). The user taps cards in the
- * fan; picks map to deck indices, so the server-side shuffle stays authoritative.
+ * (structuredContent.deck: 78 pre-shuffled cards). The deck is laid out as a
+ * linear, horizontally-scrollable spread of face-down cards; the user slides a
+ * card upward to select it (matching the simple-tarot web app's card picker).
+ * Picks map to deck indices, so the server-side shuffle stays authoritative.
  */
 
 export const TAROT_APP_URI = "ui://askingfate/tarot-picker.html";
@@ -35,6 +37,10 @@ export const TAROT_APP_HTML = /* html */ `<!DOCTYPE html>
     --gold-dim: #9c7f2c;
     --ink: #f3ecdc;
     --ink-dim: #b8a98a;
+    /* linear-deck card back (matches the simple-tarot web app) */
+    --edge-blue: #15a6ff;
+    --edge-purple: #b56cff;
+    --sigil: #fcd34d;
   }
   * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
   html, body { background: transparent; }
@@ -132,7 +138,9 @@ export const TAROT_APP_HTML = /* html */ `<!DOCTYPE html>
   .face.front {
     transform: rotateY(180deg);
     background:
-      radial-gradient(100% 130% at 50% 0%, #3a2564 0%, #241344 70%, #190c30 100%);
+      radial-gradient(circle at 30% 15%, rgba(123, 44, 191, 0.65) 0%, transparent 55%),
+      radial-gradient(circle at 80% 85%, rgba(0, 188, 212, 0.4) 0%, transparent 55%),
+      linear-gradient(135deg, #0a0a1e 0%, #1a0b2e 60%, #2d1b4e 100%);
     border: 1px solid var(--gold);
     box-shadow: 0 0 14px rgba(212, 175, 55, 0.45), inset 0 0 0 2px rgba(212, 175, 55, 0.25);
     overflow: hidden;
@@ -170,35 +178,86 @@ export const TAROT_APP_HTML = /* html */ `<!DOCTYPE html>
   }
   #counter b { color: var(--gold-bright); font-weight: 600; }
 
-  /* ---- the fan of face-down cards ---- */
-  #fanwrap {
-    margin-top: 6px; overflow-x: auto; overflow-y: hidden;
+  /* ---- the linear deck of face-down cards (slide a card up to pick) ---- */
+  #deckwrap {
+    margin-top: 8px; overflow-x: auto; overflow-y: hidden;
     -webkit-overflow-scrolling: touch;
     scrollbar-width: none;
+    touch-action: pan-x;
   }
-  #fanwrap::-webkit-scrollbar { display: none; }
-  #fan { position: relative; height: 175px; }
-  .card {
-    position: absolute; width: 60px; height: 94px;
-    transform-origin: 50% 100%;
-    transition: transform 0.25s ease, opacity 0.3s ease;
-    cursor: pointer;
+  #deckwrap::-webkit-scrollbar { display: none; }
+  #deck { position: relative; height: 232px; }
+  .dcard {
+    position: absolute; bottom: 6px; width: 76px; height: 114px;
+    cursor: grab; touch-action: pan-x; will-change: transform;
+    transition: transform 0.18s ease, opacity 0.4s ease;
   }
-  .card .cback {
-    width: 100%; height: 100%; border-radius: 6px;
+  .dcard.dragging { transition: none; cursor: grabbing; }
+  /* blue→purple gradient border */
+  .dcard .cframe {
+    width: 100%; height: 100%; border-radius: 14px; padding: 1px;
+    background: linear-gradient(135deg, var(--edge-blue), var(--edge-purple) 50%, var(--edge-blue));
+    box-shadow: 0 6px 14px rgba(0, 0, 0, 0.5);
+  }
+  /* white inner frame */
+  .dcard .cwhite {
+    width: 100%; height: 100%; border-radius: 13px; background: #fff; padding: 3px;
+  }
+  /* cosmic interior */
+  .dcard .cinner {
+    position: relative; width: 100%; height: 100%; border-radius: 10px; overflow: hidden;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: inset 0 0 26px rgba(0, 0, 0, 0.6);
     background:
-      radial-gradient(60% 45% at 50% 50%, rgba(212, 175, 55, 0.28) 0%, transparent 70%),
-      repeating-linear-gradient(45deg, rgba(212, 175, 55, 0.10) 0 2px, transparent 2px 7px),
-      repeating-linear-gradient(-45deg, rgba(212, 175, 55, 0.10) 0 2px, transparent 2px 7px),
-      linear-gradient(160deg, #33205c 0%, #221142 55%, #170a2e 100%);
-    border: 1px solid var(--gold-dim);
-    box-shadow: inset 0 0 0 2px rgba(212, 175, 55, 0.22), 0 3px 8px rgba(0, 0, 0, 0.55);
+      radial-gradient(circle at 30% 20%, rgba(123, 44, 191, 0.9) 0%, transparent 42%),
+      radial-gradient(circle at 70% 80%, rgba(0, 188, 212, 0.85) 0%, transparent 46%),
+      linear-gradient(135deg, #05081a 0%, #1a0b2e 60%, #3b0f4a 100%);
     display: flex; align-items: center; justify-content: center;
+    transition: filter 0.3s ease;
   }
-  .card .cback span { font-size: 16px; color: var(--gold); opacity: 0.9; text-shadow: 0 0 8px rgba(240,199,94,.6); }
-  .card.taken { opacity: 0; pointer-events: none; }
-  .card:not(.taken):active { filter: brightness(1.25); }
-  #fanhint { text-align: center; font-size: 11px; color: var(--ink-dim); opacity: 0.8; margin-top: 2px; }
+  .dcard .cinner::before {
+    content: ""; position: absolute; inset: 0; pointer-events: none;
+    background:
+      radial-gradient(1px 1px at 20% 30%, #fff 99%, transparent),
+      radial-gradient(1px 1px at 80% 60%, #fff 99%, transparent),
+      radial-gradient(1px 1px at 40% 80%, #fff 99%, transparent),
+      radial-gradient(1px 1px at 60% 20%, #fff 99%, transparent),
+      radial-gradient(1px 1px at 75% 25%, #fff 99%, transparent);
+  }
+  .dcard .csigil {
+    position: relative; color: var(--sigil); font-size: 22px; line-height: 1;
+    text-shadow: 0 0 8px rgba(252, 211, 77, 0.6);
+  }
+  /* aura when a card is lifted past the pick threshold */
+  .dcard.aura .cframe {
+    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.85), 0 0 24px 8px rgba(124, 58, 237, 0.7), 0 0 54px 20px rgba(59, 130, 246, 0.5);
+  }
+  .dcard.aura .cinner { filter: saturate(1.25) brightness(1.08); }
+  .dcard.taken { opacity: 0; pointer-events: none; }
+  @media (hover: hover) {
+    .dcard:not(.taken):hover .cinner { filter: brightness(1.15); }
+  }
+
+  /* swipe-up teaching overlay, shown when a card is tapped */
+  #swipehint {
+    position: absolute; z-index: 60; pointer-events: none;
+    transform: translateX(-50%);
+    display: none; flex-direction: column; align-items: center;
+    filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.6));
+  }
+  #swipehint.show { display: flex; }
+  #swipehint .ring {
+    width: 42px; height: 42px; border: 2px solid #fff; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    animation: sbounce 0.9s ease-in-out infinite;
+  }
+  #swipehint .ring svg { width: 22px; height: 22px; stroke: #fff; }
+  #swipehint .pill {
+    margin-top: 6px; font-size: 10px; color: #fff; white-space: nowrap;
+    background: rgba(0, 0, 0, 0.5); padding: 2px 9px; border-radius: 999px;
+  }
+  @keyframes sbounce { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-9px); } }
+  #deckhint { text-align: center; font-size: 11px; color: var(--ink-dim); opacity: 0.85; margin-top: 4px; }
 
   /* ---- done / status panel ---- */
   #panel {
@@ -214,13 +273,13 @@ export const TAROT_APP_HTML = /* html */ `<!DOCTYPE html>
   }
   #resend[hidden] { display: none; }
 
-  .waiting #slots, .waiting #fanwrap, .waiting #counter, .waiting #fanhint { display: none; }
+  .waiting #slots, .waiting #deckwrap, .waiting #counter, .waiting #deckhint { display: none; }
   .shimmer { animation: shimmer 1.6s ease-in-out infinite; }
   @keyframes shimmer { 0%, 100% { opacity: 0.55; } 50% { opacity: 1; } }
 
   @media (prefers-reduced-motion: reduce) {
-    .slot .flip, .card { transition: none; }
-    .slot.filled .well, .shimmer, .cstars { animation: none; }
+    .slot .flip, .dcard { transition: none; }
+    .slot.filled .well, .shimmer, .cstars, #swipehint .ring { animation: none; }
   }
 </style>
 </head>
@@ -236,8 +295,8 @@ export const TAROT_APP_HTML = /* html */ `<!DOCTYPE html>
   </header>
   <section id="slots" aria-label="Chosen cards"></section>
   <p id="counter"></p>
-  <section id="fanwrap" aria-label="The deck"><div id="fan"></div></section>
-  <p id="fanhint">Scroll through the deck, then tap the cards that call to you</p>
+  <section id="deckwrap" aria-label="The deck"><div id="deck"></div></section>
+  <p id="deckhint">Scroll the deck sideways, then slide a card up to choose it</p>
   <div id="panel" hidden>
     <p class="big" id="panel-title"></p>
     <p id="panel-body"></p>
@@ -335,17 +394,17 @@ export const TAROT_APP_HTML = /* html */ `<!DOCTYPE html>
       el("question").textContent = "“" + sc.question + "”";
     }
     buildSlots();
-    buildFan();
+    buildDeck();
     el("subtitle").classList.remove("shimmer");
-    el("subtitle").textContent = sc.spread_name + " — tap to pick " +
+    el("subtitle").textContent = sc.spread_name + " — slide up to pick " +
       sc.positions.length + (sc.positions.length > 1 ? " cards" : " card");
     document.getElementById("stage").classList.remove("waiting");
     document.body.classList.add("s-" + sc.positions.length);
     updateCounter();
-    // centre the fan
-    var wrap = el("fanwrap");
-    var fanW = el("fan").scrollWidth;
-    wrap.scrollLeft = Math.max(0, (fanW - wrap.clientWidth) / 2);
+    // centre the deck
+    var wrap = el("deckwrap");
+    var deckW = el("deck").scrollWidth;
+    wrap.scrollLeft = Math.max(0, (deckW - wrap.clientWidth) / 2);
     sendSize();
   }
 
@@ -379,48 +438,176 @@ export const TAROT_APP_HTML = /* html */ `<!DOCTYPE html>
     });
   }
 
-  function buildFan() {
-    var fan = el("fan");
+  /* deck geometry (linear, overlapping spread) */
+  var CARD_W = 76, CARD_H = 114, STEP = 46, PAD = 14;
+
+  function buildDeck() {
+    var deck = el("deck");
     var n = spread.deck.length;
-    var step = 17, cardW = 60, pad = 16;
-    var centre = (n - 1) / 2;
-    fan.style.width = (pad * 2 + step * (n - 1) + cardW) + "px";
+    deck.style.width = (PAD * 2 + STEP * (n - 1) + CARD_W) + "px";
     for (var i = 0; i < n; i++) {
       var c = document.createElement("div");
-      c.className = "card";
+      c.className = "dcard";
       c.dataset.i = String(i);
-      var t = (i - centre) / centre; // -1 … 1
-      c.style.left = (pad + i * step) + "px";
-      c.style.top = (34 + 26 * t * t) + "px";
-      c.style.transform = "rotate(" + (t * 24) + "deg)";
+      c.style.left = (PAD + i * STEP) + "px";
+      c.style.zIndex = String(i + 1);
       c.setAttribute("role", "button");
-      c.setAttribute("aria-label", "Face-down card " + (i + 1));
-      var back = document.createElement("div");
-      back.className = "cback";
-      var star = document.createElement("span");
-      star.textContent = "☾✦";
-      back.appendChild(star);
-      c.appendChild(back);
-      c.addEventListener("click", onCardTap);
-      fan.appendChild(c);
+      c.setAttribute("aria-label", "Face-down card " + (i + 1) + " — slide up to choose");
+      // frame → white → cosmic interior with sigil
+      var frame = document.createElement("div");
+      frame.className = "cframe";
+      var white = document.createElement("div");
+      white.className = "cwhite";
+      var inner = document.createElement("div");
+      inner.className = "cinner";
+      var sigil = document.createElement("div");
+      sigil.className = "csigil";
+      sigil.textContent = "✷";
+      inner.appendChild(sigil);
+      white.appendChild(inner);
+      frame.appendChild(white);
+      c.appendChild(frame);
+      c.addEventListener("pointerdown", onPointerDown);
+      c.addEventListener("pointermove", onPointerMove);
+      c.addEventListener("pointerup", onPointerUp);
+      c.addEventListener("pointercancel", onPointerCancel);
+      deck.appendChild(c);
+    }
+    // reusable swipe-up teaching overlay
+    var hint = document.createElement("div");
+    hint.id = "swipehint";
+    hint.innerHTML =
+      '<div class="ring"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" ' +
+      'stroke-linecap="round" stroke-linejoin="round"><path d="M7 11l5-5m0 0l5 5m-5-5v12"/></svg></div>' +
+      '<div class="pill">Swipe up to select</div>';
+    deck.appendChild(hint);
+
+    // desktop: translate vertical wheel into horizontal deck scroll
+    el("deckwrap").addEventListener("wheel", function (ev) {
+      var wrap = el("deckwrap");
+      var d = Math.abs(ev.deltaY) > Math.abs(ev.deltaX) ? ev.deltaY : ev.deltaX;
+      if (d) { wrap.scrollLeft += d; ev.preventDefault(); }
+    }, { passive: false });
+  }
+
+  /* ---------- slide-up-to-pick gesture ---------- */
+  var drag = null;       // active pointer gesture
+  var hintTimer = null;
+
+  function pickable() {
+    return spread && !toolCancelled && !sending &&
+      picks.length < spread.positions.length;
+  }
+
+  function readTranslateY(elm) {
+    var m = window.getComputedStyle(elm).transform;
+    if (!m || m === "none") return 0;
+    var v = m.match(/-?\\d+\\.?\\d*/g);
+    if (!v) return 0;
+    if (v.length === 6) return parseFloat(v[5]) || 0;
+    if (v.length === 16) return parseFloat(v[13]) || 0;
+    return 0;
+  }
+
+  function onPointerDown(ev) {
+    if (!ev.isPrimary) return;
+    var cardEl = ev.currentTarget;
+    if (cardEl.classList.contains("taken")) return;
+    drag = {
+      el: cardEl,
+      i: Number(cardEl.dataset.i),
+      startX: ev.clientX,
+      startY: ev.clientY,
+      startScroll: el("deckwrap").scrollLeft,
+      pointerId: ev.pointerId,
+      type: ev.pointerType,
+      mode: null,      // null → undecided, "lift", "scroll", "native"
+      moved: false,
+    };
+  }
+
+  function onPointerMove(ev) {
+    if (!drag || ev.pointerId !== drag.pointerId) return;
+    var dx = ev.clientX - drag.startX;
+    var dy = ev.clientY - drag.startY;
+
+    if (drag.mode === null) {
+      if (Math.abs(dx) > 4 || Math.abs(dy) > 4) drag.moved = true;
+      if (Math.abs(dy) > Math.abs(dx) + 8) {
+        // vertical → lift this card (we take over the pointer)
+        drag.mode = "lift";
+        try { drag.el.setPointerCapture(drag.pointerId); } catch (e) {}
+        drag.el.classList.add("dragging");
+        hideSwipeHint();
+      } else if (Math.abs(dx) > Math.abs(dy) + 8) {
+        // horizontal → scroll the deck. Touch scrolls natively (pan-x);
+        // mouse/pen we drive by hand.
+        if (drag.type === "mouse" || drag.type === "pen") {
+          drag.mode = "scroll";
+          try { drag.el.setPointerCapture(drag.pointerId); } catch (e) {}
+        } else {
+          drag.mode = "native";
+        }
+      } else {
+        return;
+      }
+    }
+
+    if (drag.mode === "lift") {
+      ev.preventDefault();
+      var ty = Math.max(-CARD_H, Math.min(0, dy));
+      var rot = Math.max(-8, ty / 20);
+      drag.el.style.transform = "translateY(" + ty + "px) rotate(" + rot + "deg)";
+      drag.el.style.zIndex = "500";
+      var up = -ty;
+      if (up >= 0.5 * CARD_H) drag.el.classList.add("aura");
+      else drag.el.classList.remove("aura");
+    } else if (drag.mode === "scroll") {
+      ev.preventDefault();
+      el("deckwrap").scrollLeft = drag.startScroll - dx;
     }
   }
 
-  function onCardTap(ev) {
-    if (!spread || toolCancelled || sending) return;
-    if (picks.length >= spread.positions.length) return;
-    var cardEl = ev.currentTarget;
-    var i = Number(cardEl.dataset.i);
-    if (taken.has(i)) return;
-    taken.add(i);
+  function onPointerUp(ev) {
+    if (!drag || ev.pointerId !== drag.pointerId) return;
+    var cardEl = drag.el;
+    var mode = drag.mode;
 
+    if (mode === "lift") {
+      var up = -readTranslateY(cardEl);
+      cardEl.classList.remove("dragging", "aura");
+      if (up >= 0.5 * CARD_H && pickable() && !taken.has(drag.i)) {
+        selectCard(drag.i, cardEl);
+      } else {
+        cardEl.style.zIndex = String(drag.i + 1);
+        cardEl.style.transform = "translateY(0) rotate(0deg)";
+      }
+    } else if (!mode && !drag.moved) {
+      // a tap without a drag → teach the gesture
+      showSwipeHint(cardEl);
+    }
+    drag = null;
+  }
+
+  function onPointerCancel(ev) {
+    if (!drag || ev.pointerId !== drag.pointerId) return;
+    if (drag.mode === "lift") {
+      drag.el.classList.remove("dragging", "aura");
+      drag.el.style.zIndex = String(drag.i + 1);
+      drag.el.style.transform = "translateY(0) rotate(0deg)";
+    }
+    drag = null;
+  }
+
+  function selectCard(i, cardEl) {
+    taken.add(i);
     var card = spread.deck[i];
     var pos = spread.positions[picks.length];
     picks.push({ position: pos, card: card });
 
-    // lift-and-fade the tapped card out of the fan
-    var current = cardEl.style.transform;
-    cardEl.style.transform = current + " translateY(-26px) scale(1.06)";
+    // the chosen card flies up and out of the deck
+    cardEl.style.transition = "transform 0.45s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.45s ease";
+    cardEl.style.transform = "translateY(-135%) rotate(-6deg)";
     cardEl.classList.add("taken");
 
     fillSlot(pos, card);
@@ -429,6 +616,23 @@ export const TAROT_APP_HTML = /* html */ `<!DOCTYPE html>
     if (picks.length === spread.positions.length) {
       setTimeout(finishPicking, 950);
     }
+  }
+
+  function showSwipeHint(cardEl) {
+    var hint = el("swipehint");
+    if (!hint) return;
+    var left = parseFloat(cardEl.style.left) + CARD_W / 2;
+    hint.style.left = left + "px";
+    hint.style.bottom = (6 + CARD_H + 8) + "px";
+    hint.classList.add("show");
+    if (hintTimer) clearTimeout(hintTimer);
+    hintTimer = setTimeout(hideSwipeHint, 1900);
+  }
+
+  function hideSwipeHint() {
+    var hint = el("swipehint");
+    if (hint) hint.classList.remove("show");
+    if (hintTimer) { clearTimeout(hintTimer); hintTimer = null; }
   }
 
   function fillSlot(pos, card) {
@@ -483,8 +687,9 @@ export const TAROT_APP_HTML = /* html */ `<!DOCTYPE html>
   }
 
   function finishPicking() {
-    el("fanwrap").style.display = "none";
-    el("fanhint").style.display = "none";
+    hideSwipeHint();
+    el("deckwrap").style.display = "none";
+    el("deckhint").style.display = "none";
     sendResults();
   }
 

@@ -146,7 +146,7 @@ const handler = createMcpHandler(
       TAROT_APP_URI,
       {
         description:
-          "Interactive fan-layout tarot card picker for draw_tarot_spread (mobile-first, self-contained HTML).",
+          "Interactive linear-deck tarot card picker for draw_tarot_spread — slide a card up to select (mobile-first, self-contained HTML).",
         _meta: {
           ui: {
             // Fully self-contained: no network access needed inside the sandbox.
