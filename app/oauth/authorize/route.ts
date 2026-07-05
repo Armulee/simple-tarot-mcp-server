@@ -22,8 +22,15 @@ import {
   publicRequestUrl,
 } from "@/lib/oauth/config";
 import { isValidCodeChallenge, randomToken, sha256hex } from "@/lib/oauth/crypto";
-import { buildRedirect, escapeHtml, htmlResponse, parseCookies, redirectResponse } from "@/lib/oauth/http";
-import { signConsentTxn, verifyConsentTxn } from "@/lib/oauth/jwt";
+import {
+  buildRedirect,
+  escapeHtml,
+  htmlResponse,
+  isSameOriginRequest,
+  parseCookies,
+  redirectResponse,
+} from "@/lib/oauth/http";
+import { signConsentTxn, verifyConsentTxn, type ConsentTxn } from "@/lib/oauth/jwt";
 import { buildLoginRedirect, getAskingfateUser, RETURN_COOKIE } from "@/lib/oauth/session";
 import { getSupabaseConfig } from "@/lib/oauth/supabase";
 import { getOAuthStore, type OAuthClient } from "@/lib/oauth/store";
@@ -182,17 +189,24 @@ export async function POST(req: Request): Promise<Response> {
     return errorPage(400, "This consent page has expired — please start the connection again.");
   }
 
-  // Double-submit cookie must match the hash bound into the txn token.
+  // CSRF: a same-origin Origin/Referer is the primary check; the
+  // double-submit cookie is the fallback for browsers that send neither.
+  // (Mobile in-app browsers routinely lose the consent cookie — e.g. going
+  // back after a successful submit, or the app dropping the cookie jar —
+  // which used to reject legitimate re-submissions here.)
   const cookies = parseCookies(req.headers.get("cookie"));
   const nonce = cookies[CONSENT_COOKIE];
-  if (!nonce || sha256hex(nonce) !== txn.nonce_hash) {
+  const cookieOk = !!nonce && sha256hex(nonce) === txn.nonce_hash;
+  if (!cookieOk && !isSameOriginRequest(req, issuer)) {
     return errorPage(400, "Verification failed (CSRF check) — please start again.");
   }
 
   // The askingfate session must still belong to the user who saw the page.
+  // If it vanished or changed mid-consent, restart the flow instead of
+  // dead-ending — /oauth/authorize re-authenticates and re-renders consent.
   const user = await getAskingfateUser(req, issuer);
   if (!user || user.id !== txn.user_id) {
-    return errorPage(403, "Your session changed during confirmation — please start the connection again.");
+    return redirectResponse(authorizeRestartUrl(txn));
   }
 
   const clearCookie = `${CONSENT_COOKIE}=; Path=/oauth; Max-Age=0; HttpOnly; SameSite=Lax${
@@ -239,6 +253,21 @@ function withSetCookie(response: Response, cookie: string): Response {
   const headers = new Headers(response.headers);
   headers.append("Set-Cookie", cookie);
   return new Response(response.body, { status: response.status, headers });
+}
+
+/** Rebuild the original authorize URL from a consent txn so the flow can restart cleanly. */
+function authorizeRestartUrl(txn: ConsentTxn): string {
+  const params = new URLSearchParams({
+    response_type: "code",
+    client_id: txn.client_id,
+    redirect_uri: txn.redirect_uri,
+    scope: txn.scope,
+    code_challenge: txn.code_challenge,
+    code_challenge_method: "S256",
+  });
+  if (txn.state) params.set("state", txn.state);
+  if (txn.resource) params.set("resource", txn.resource);
+  return `/oauth/authorize?${params.toString()}`;
 }
 
 /**

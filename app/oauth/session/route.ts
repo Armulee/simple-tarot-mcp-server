@@ -13,22 +13,11 @@
  * serving hostname).
  */
 import { issuerFromRequest } from "@/lib/oauth/config";
-import { enforceRateLimit, oauthError } from "@/lib/oauth/http";
+import { enforceRateLimit, isSameOriginRequest, oauthError } from "@/lib/oauth/http";
 import { buildSessionCookie } from "@/lib/oauth/session";
 import { getSupabaseConfig, verifySupabaseAccessToken } from "@/lib/oauth/supabase";
 
 export const maxDuration = 15;
-
-function isSameOrigin(req: Request, origin: string, issuer: string): boolean {
-  if (origin.replace(/\/$/, "") === issuer) return true;
-  try {
-    const host =
-      req.headers.get("x-forwarded-host")?.split(",")[0]?.trim() || req.headers.get("host");
-    return !!host && new URL(origin).host === host;
-  } catch {
-    return false;
-  }
-}
 
 export async function POST(req: Request): Promise<Response> {
   try {
@@ -47,8 +36,8 @@ async function establishSession(req: Request): Promise<Response> {
   if (limited) return limited;
 
   const issuer = issuerFromRequest(req);
-  const origin = req.headers.get("origin");
-  if (!origin || !isSameOrigin(req, origin, issuer)) {
+  if (!isSameOriginRequest(req, issuer)) {
+    const origin = req.headers.get("origin");
     console.warn(`[oauth] session rejected: origin ${origin ?? "(none)"} vs issuer ${issuer}`);
     return oauthError(
       403,
