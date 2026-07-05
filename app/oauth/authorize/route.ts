@@ -2,10 +2,13 @@
  * OAuth 2.1 authorization endpoint.
  *
  * GET  — validates the request, requires an askingfate.com login. Without one
- *        it renders a sign-in page backed by the SAME Supabase project as the
- *        main site (email/password + Google — the main site keeps its session
- *        in localStorage, so it cannot be shared across subdomains). With one
- *        it renders a short consent page.
+ *        it redirects to the main site's /signin page, which hands the
+ *        Supabase access token back to /oauth/callback (the main site keeps
+ *        its session in localStorage, so it cannot be shared across
+ *        subdomains — the token handoff bridges that). With a login it
+ *        renders a short consent page. OAUTH_HOSTED_SIGNIN=true swaps the
+ *        redirect for a self-hosted sign-in page against the same Supabase
+ *        project.
  * POST — handles the consent decision (CSRF-protected via a signed transaction
  *        token + double-submit cookie) and redirects back to the client with a
  *        single-use authorization code (60s TTL, stored hashed) or an error.
@@ -103,16 +106,25 @@ export async function GET(req: Request): Promise<Response> {
     return fail("invalid_target", "Unknown resource indicator.");
   }
 
-  // Require an askingfate.com login; render our own sign-in page if absent.
+  // Require an askingfate.com login.
   const user = await getAskingfateUser(req, issuer);
   if (!user) {
     const supabase = getSupabaseConfig();
     if (!supabase) {
-      // No Supabase env — fall back to an external login page that must
-      // redirect back here (see ASKINGFATE_LOGIN_URL).
+      // No Supabase env — legacy fallback: external login page that must
+      // redirect straight back here (see ASKINGFATE_LOGIN_URL).
       return redirectResponse(buildLoginRedirect(publicRequestUrl(req)));
     }
-    return signInResponse(req, supabase, issuer, client.client_name || "MCP client");
+    if (process.env.OAUTH_HOSTED_SIGNIN === "true") {
+      // Self-hosted sign-in page — works without main-site cooperation.
+      return signInResponse(req, supabase, issuer, client.client_name || "MCP client");
+    }
+    // Default: sign in on the main site itself. askingfate.com/signin (and
+    // /signup, and the Google /auth/callback leg) recognises a callbackUrl
+    // pointing at this deployment and returns to /oauth/callback with the
+    // Supabase access token in the URL fragment; users already logged in on
+    // askingfate.com pass straight through without typing anything.
+    return mainSiteSignInRedirect(req, issuer);
   }
 
   // Render consent, bound to this user + request via a signed txn token and a
@@ -233,7 +245,26 @@ function withSetCookie(response: Response, cookie: string): Response {
 }
 
 /**
- * Sign-in page shown when there is no session yet. It logs the user in
+ * Default sign-in: redirect to the main site's own /signin page with a
+ * callbackUrl pointing at /oauth/callback here. After login the main site
+ * hands the Supabase access token back in the URL fragment; /oauth/callback
+ * turns it into our session cookie and resumes the authorize URL remembered
+ * in the return cookie set below.
+ */
+function mainSiteSignInRedirect(req: Request, issuer: string): Response {
+  const authorizeUrl = publicRequestUrl(req);
+  const response = redirectResponse(buildLoginRedirect(`${issuer}/oauth/callback`));
+  const secure = issuer.startsWith("https:") ? "; Secure" : "";
+  const headers = new Headers(response.headers);
+  headers.append(
+    "Set-Cookie",
+    `${RETURN_COOKIE}=${encodeURIComponent(authorizeUrl)}; Path=/oauth; Max-Age=600; HttpOnly; SameSite=Lax${secure}`,
+  );
+  return new Response(null, { status: 302, headers });
+}
+
+/**
+ * Sign-in page shown when OAUTH_HOSTED_SIGNIN=true. It logs the user in
  * against the main site's Supabase project client-side, then POSTs the
  * access token to /oauth/session (which sets our HttpOnly session cookie)
  * and reloads this authorize URL — which then renders the consent page.
