@@ -25,7 +25,7 @@ import { buildZodiacInfo } from "@/lib/astro/zodiac";
 import { buildAuspiciousDates, parseMonth, Purpose } from "@/lib/astro/auspicious";
 import { TAROT_APP_HTML, TAROT_APP_URI } from "@/lib/mcp/tarot-app-html";
 import { verifyMcpToken } from "@/lib/oauth/mcp-auth";
-import { getStarBalance } from "@/lib/stars/balance";
+import { getStarBalance, spendStar } from "@/lib/stars/balance";
 
 /** Detect the picker UI language from the question (Thai script → th, else en). */
 function detectLocale(question?: string | null): "th" | "en" {
@@ -39,11 +39,48 @@ function userIdFromExtra(extra: unknown): string | undefined {
   return typeof id === "string" && id ? id : undefined;
 }
 
+/** Bilingual message shown when the user is out of stars. */
+const INSUFFICIENT_STARS_MESSAGE =
+  "⭐ ดาวของคุณไม่พอ (การดูดวงแต่ละครั้งใช้ 1 ดวง) — เติมดาวได้ที่ askingfate.com แล้วลองใหม่อีกครั้ง\n\n" +
+  "You're out of stars — each reading costs 1 star. Top up at askingfate.com and try again.";
+
+/**
+ * Charge 1 star for a successful tool call. Every tool costs a star, so this
+ * runs after input validation (invalid input never charges) and before the
+ * result is returned. Returns a `blocked` result to short-circuit the tool when
+ * the user is out of stars, plus the post-charge `stars` balance for display.
+ * Fails OPEN: if spending is unconfigured or Supabase is unreachable the tool
+ * proceeds uncharged rather than breaking.
+ */
+async function chargeStar(
+  extra: unknown,
+): Promise<{ blocked: ToolResult | null; stars: number | null }> {
+  const userId = userIdFromExtra(extra);
+  if (!userId) return { blocked: null, stars: null };
+
+  const spend = await spendStar(userId, 1);
+  if (spend.status === "insufficient") {
+    return { blocked: errorResult(INSUFFICIENT_STARS_MESSAGE), stars: spend.balance };
+  }
+  if (spend.status === "ok") return { blocked: null, stars: spend.balance };
+  // skipped (unconfigured / infra error) — proceed, show a best-effort balance.
+  return { blocked: null, stars: await getStarBalance(userId) };
+}
+
 export const maxDuration = 60;
 
-/** All tools are read-only lookups/draws with no side effects (draw_tarot_spread
- * additionally does a best-effort read of the user's star balance from Supabase). */
-const READ_ONLY = { readOnlyHint: true, openWorldHint: false } as const;
+/**
+ * Every tool deducts 1 star per successful call (see chargeStar), so none are
+ * read-only or idempotent, and each touches the external star ledger. The hints
+ * reflect that: readOnlyHint false → clients treat the call as state-changing
+ * and shouldn't silently auto-run it; idempotentHint false → repeating a call
+ * charges again; openWorldHint true → it reaches Supabase.
+ */
+const SPENDS_STAR = {
+  readOnlyHint: false,
+  idempotentHint: false,
+  openWorldHint: true,
+} as const;
 
 type ToolResult = {
   content: Array<{ type: "text"; text: string }>;
@@ -112,19 +149,20 @@ const handler = createMcpHandler(
               "Optional question the user wants the reading to focus on, shown in the card-picking UI.",
             ),
         },
-        annotations: { ...READ_ONLY, idempotentHint: false },
+        annotations: { ...SPENDS_STAR },
         _meta: { ui: { resourceUri: TAROT_APP_URI } },
       },
       async ({ spread_type, question }, extra: unknown) => {
         const spread = SPREADS[spread_type as SpreadType];
-        const deck = shuffleDeck();
         const trimmedQuestion = question?.trim() || null;
         const locale = detectLocale(trimmedQuestion);
 
-        // Best-effort star balance for the top-right badge; never blocks the draw.
-        const userId = userIdFromExtra(extra);
-        const stars = userId ? await getStarBalance(userId) : null;
+        // Charge 1 star for the draw; stop here if the user is out of stars.
+        const charge = await chargeStar(extra);
+        if (charge.blocked) return charge.blocked;
+        const stars = charge.stars;
 
+        const deck = shuffleDeck();
         const fallbackDraw = spread.positions.map((pos, i) => ({
           position_index: pos.index,
           position_key: pos.key,
@@ -211,9 +249,9 @@ const handler = createMcpHandler(
             'Life area to focus on: "love", "career", "money", "health", or "overall".',
           ),
         },
-        annotations: { ...READ_ONLY, idempotentHint: true },
+        annotations: { ...SPENDS_STAR },
       },
-      async ({ birth_date, birth_time, category }) => {
+      async ({ birth_date, birth_time, category }, extra: unknown) => {
         const date = parseIsoDate("birth_date", birth_date);
         if (!date.ok) return errorResult(date.error);
 
@@ -233,6 +271,9 @@ const handler = createMcpHandler(
           if (!parsed.ok) return errorResult(parsed.error);
           time = parsed.value;
         }
+
+        const charge = await chargeStar(extra);
+        if (charge.blocked) return charge.blocked;
 
         const data = buildThaiHoroscope(
           date.value,
@@ -259,11 +300,13 @@ const handler = createMcpHandler(
             .string()
             .describe('Birth date in ISO format YYYY-MM-DD, e.g. "1990-12-31".'),
         },
-        annotations: { ...READ_ONLY, idempotentHint: true },
+        annotations: { ...SPENDS_STAR },
       },
-      async ({ birth_date }) => {
+      async ({ birth_date }, extra: unknown) => {
         const date = parseIsoDate("birth_date", birth_date);
         if (!date.ok) return errorResult(date.error);
+        const charge = await chargeStar(extra);
+        if (charge.blocked) return charge.blocked;
         return jsonResult(buildZodiacInfo(date.value, birth_date) as unknown as Record<string, unknown>);
       },
     );
@@ -285,11 +328,13 @@ const handler = createMcpHandler(
             'Purpose of the event: "wedding", "business" (opening a business), "moving" (moving house), or "car" (taking delivery of a car).',
           ),
         },
-        annotations: { ...READ_ONLY, idempotentHint: true },
+        annotations: { ...SPENDS_STAR },
       },
-      async ({ month, purpose }) => {
+      async ({ month, purpose }, extra: unknown) => {
         const parsed = parseMonth(month);
         if (!parsed.ok) return errorResult(parsed.error);
+        const charge = await chargeStar(extra);
+        if (charge.blocked) return charge.blocked;
         return jsonResult(
           buildAuspiciousDates(parsed.year, parsed.month, purpose as Purpose) as unknown as Record<
             string,
@@ -302,7 +347,7 @@ const handler = createMcpHandler(
   {
     serverInfo: { name: "askingfate-fortune-teller", version: "1.0.0" },
     instructions:
-      "AskingFate (askingfate.com) fortune-telling tools: draw_tarot_spread opens an interactive card-picking UI (wait for the user's picks before interpreting), while get_thai_horoscope, get_zodiac_info and get_auspicious_dates return structured Thai-astrology reference data for you to interpret. All tools are read-only and computed from traditional tables — present readings as guidance based on traditional astrological principles, never as guaranteed predictions.",
+      "AskingFate (askingfate.com) fortune-telling tools: draw_tarot_spread opens an interactive card-picking UI (wait for the user's picks before interpreting), while get_thai_horoscope, get_zodiac_info and get_auspicious_dates return structured Thai-astrology reference data for you to interpret. Each successful tool call costs the user 1 star (deducted from their askingfate.com balance); if they're out of stars the tool returns a top-up message instead of data. Present readings as guidance based on traditional astrological principles, never as guaranteed predictions.",
   },
   {
     basePath: "", // matches app/[transport]/route.ts → endpoint is /mcp
